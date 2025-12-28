@@ -22,7 +22,7 @@ type
     mdbList
     mdbHLine
 
-    # spans
+    # spans (inline elements)
     mdsText
     mdsComment
     mdsItalic
@@ -52,6 +52,11 @@ type
     lang:     string # for code
     href:     string # for link
 
+  SkipWhitespaceReport = object
+    counts: array[0 .. 128, int]
+
+const init = -1
+
 func xmlRepr(n: MdNode, result: var string) = 
   result.add "<"
   result.add $n.kind
@@ -67,17 +72,28 @@ func xmlRepr(n: MdNode, result: var string) =
 func xmlRepr(n: MdNode): string = 
   xmlRepr n, result
 
+
 proc nextSpanCandidate = 
   discard
 
-proc nextBlockCandidate(content: string, cursor: int): Slice[Natural] =
+proc skipWhitespaces(content: string, cursor: int): SkipWhitespaceReport = 
   discard
+
+proc nextBlockCandidate(content: string, cursor: int): Slice[int] =
+  var 
+    head = 0 
+    tail = content.len - 1
+
+  if cursor != init:
+    let i = find(content, "\n", head)
+
+  head .. tail
 
 proc parseMarkdown(content: string): MdNode = 
   result = MdNode(kind: mdWrap)
 
-  var cursor = -1
-  let blockRange = nextBlockCandidate(content, cursor)
+  var cursor = init
+  let slice = nextBlockCandidate(content, cursor)
 
 # -----------------------------
 
