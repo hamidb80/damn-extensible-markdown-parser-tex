@@ -22,7 +22,6 @@ type
     mdbMath # $$
     mdbQuote # > 
     mdbList # + - *
-    mdsWikiEmbed # like photos, PDFs, etc ![[...]]
 
     # spans (inline elements)
     mdsText # ...
@@ -35,6 +34,7 @@ type
     mdsLink # ![]()
     mdsEmbed # ![]()
     mdsWikilink # [[ ... ]]
+    mdsWikiEmbed # like photos, PDFs, etc ![[...]]
 
     # other
     mdHLine # ---
@@ -159,14 +159,17 @@ proc startsWith(str: string, cursor: int, pattern: SimplePattern): bool =
     c = 0      # count
     i = cursor # string index
 
-  while i < str.len:
+  while true:
+    if i >= str.len: 
+      return false
+    
     if j == pattern.len: # all sub patterns satisfied
       return true
     
     # let cond = matches(str[i], pattern[j].token)
     # echo ">> ", str[i], ' ', pattern[j], ' ', cond
 
-    elif matches(str[i], pattern[j].token):
+    if matches(str[i], pattern[j].token):
       inc c
       inc i
 
@@ -179,15 +182,16 @@ proc startsWith(str: string, cursor: int, pattern: SimplePattern): bool =
 
     else:
       return false
-
+  
+  true
 
 proc detectBlockKind(content: string, cursor: int): MdNodeKind = 
-  # TODO support "^```\s*$" means the line that is started with ``` and ends with ``` and maybe some spaces after
   if   startsWith(content, cursor, p"```"): mdbCode
   elif startsWith(content, cursor, p"$$\s" ): mdbMath
   elif startsWith(content, cursor, p"> "   ): mdbQuote
   elif startsWith(content, cursor, p"#+ "  ): mdbHeader
   elif startsWith(content, cursor, p"---+" ): mdHLine
+  # TODO add list and embed
   else: mdbPar
 
 proc skipBefore(content: string, cursor: int, pattern: SimplePattern): int = 
@@ -197,7 +201,7 @@ proc skipBefore(content: string, cursor: int, pattern: SimplePattern): int =
     if startsWith(content, i, pattern): return i-1
     else: inc i
   
-  raise newException(ValueError, "cannot match end of ")
+  raise newException(ValueError, "cannot match end of " & $pattern)
 
 proc skipChars(content: string, slice: Slice[int], chars: set[char]): int = 
   var i = slice.a
@@ -220,15 +224,20 @@ proc skipAtNextLine(content: string, slice: Slice[int]): int =
   skipNotChar(content, slice, '\n')
 
 proc skipAfterParagraphSep(content: string, slice: Slice[int]): int = 
-  # go until double \s+\n\s+\n
+  ## go until double \s+\n\s+\n
+  
   # XXX there is one exception and that is if there be a list just after the paragraph
+  # XXX or $$ or ``` or ![[ or ---- :(
 
   var newlines = 0
   var i = slice.a
 
   while i in slice:
     case content[i]
-    of '\n':                inc newlines
+    of '\n':                
+      inc newlines
+      if detectBlockKind(content, i+1) != mdbPar: break
+
     of Whitespace - {'\n'}: discard
     elif 2 <= newlines:     break
     else:                   reset newlines
@@ -248,13 +257,13 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
     let pat = "\n```"
     let i = cursor + len "```"
     let e = skipBefore(content, i, p pat)
-    e + len pat
+    1 + e + len pat
   
   of mdbMath: 
     let pat = "\n$$"
     let i = cursor + len "$$"
     let e = skipBefore(content, i, p pat)
-    e + len pat
+    1 + e + len pat
   
   of mdbList:   cursor
   of mdbTable:  cursor
@@ -262,36 +271,34 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
 
-# TODO detect indent
+#  TODO detect indent
 
 proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode = 
-  echo ":: ", kind
-
   case kind
   of mdbHeader: 
     let i = skipChar(content, slice, '#')
     var b = MdNode(kind: mdbHeader, priority: i-slice.a)
     # TODO now go for inline sub nodes
-    echo 'H' , b.priority, ' ', content[slice]
+    # echo 'H' , b.priority, ' ', content[slice]
+    discard
   
   of mdHLine: 
-    echo "<hr>" , content[slice]
+    # echo "<hr> " , content[slice]
+    discard
   
   of mdbPar: 
-    echo "(par) ", content[slice]
-
+    # echo "(par) ", content[slice]
     # discard nextSpanCandidate(content, cursor)
+    discard
+  
+  of mdbCode: 
+    # echo "(code) ", content[i..e]
+    # e + len pat
+     discard
   
   of mdbTable:
      discard
-  
-  of mdbCode: 
-    let pat = "\n```"
-    let i = slice.a + len "```"
-    let e = skipBefore(content, i, p pat)
-    echo "(code) ", content[i..e]
-    # e + len pat
-  
+
   of mdbMath: 
     discard
   
@@ -309,13 +316,14 @@ proc parseMarkdown(content: string): MdNode =
   result = MdNode(kind: mdWrap)
 
   var cursor = 0
-  while true:
+  while cursor < content.len:
     let head = skipWhitespaces(content, cursor)
-    let kind = detectBlockKind(content, cursor)
-    let tail = afterBlock(content, cursor, kind)
-    let b    = parseMdBlock(content, head .. tail-1, kind)
-    break
-    # cursor = i+1
+    let kind = detectBlockKind(content, head)
+    let tail = afterBlock(content, head, kind)
+    echo ":: ", kind, ' ', head .. tail, ' ', '[', content[head], ']', ' ', '<', content.substr(head, tail-1), '>'
+    if tail - head <= 0: break
+    # let b    = parseMdBlock(content, head .. tail-1, kind)
+    cursor = tail
 
  
 # -----------------------------
@@ -325,15 +333,18 @@ when isMainModule:
   # echo startsWith("# hello",   0, p"#+\s+")
   # echo startsWith("hello",     0, p"#+\s+")
   # echo startsWith("```py\n wow\n```", 0, p"```")
+  # echo startsWith("-----", 0, p"---+")
+  # echo startsWith("", 0, p"```")
 # else:
 
-  for (t, path) in walkDir "./tests":
+  for (t, path) in walkDir "./tests/hard":
     if t == pcFile: 
+      echo "------------- ", path
+
       let 
         content = readFile path
         doc     = parseMarkdown content
       
-      echo "------------- ", path
       echo xmlRepr doc
 
 
