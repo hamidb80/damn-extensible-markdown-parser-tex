@@ -1,5 +1,6 @@
 import std/[
-  strutils,
+  strutils, strformat,
+  tables,
   options,
   os,
 ]
@@ -55,8 +56,29 @@ type
     lang:     string # for code
     href:     string # for link
 
-  SkipWhitespaceReport = object
-    counts: array[0 .. 128, int]
+
+type
+  SkipWhitespaceReport = CountTable[char]
+
+  SimplePatternMeta = enum
+    spmWhitespace  # \s
+
+  SimplePatternTokenKind = enum
+    sptChar
+    sptMeta
+
+  SimplePatternToken = object
+    case kind: SimplePatternTokenKind
+    of sptChar:
+      ch: char
+    of sptMeta:
+      meta: SimplePatternMeta
+
+  SimplePatternNode = object
+    token: SimplePatternToken
+    repeat: Slice[int] = 1..1 # 1 (default), *, +, custom
+
+  SimplePattern = seq[SimplePatternNode]
 
 # --------------------------------------------
 
@@ -84,23 +106,81 @@ proc skipWhitespaces(content: string, cursor: int): SkipWhitespaceReport =
   discard
 
 proc nextSpanCandidate(content: string, cursor: int): int = 
-
   discard
+
+func at(str: string, index: int): char = 
+  if index in str.low .. str.high: str[index]
+  else:                            '\0'
+
+proc p(pattern: string): SimplePattern = 
+  var i = 0
+  while i < pattern.len:
+    
+    let lastToken = 
+      case pattern.at(i)
+      of '\\':
+        case pattern.at(i+1)
+        of 's': SimplePatternToken(kind: sptMeta, meta: spmWhitespace)
+        else:   raise newException(ValueError, fmt"invalid meta character '{pattern.at(i+1)}'")
+      else:     SimplePatternToken(kind: sptChar, ch: pattern[i])
+
+    let repeat = 
+      case pattern.at(i+1)
+      of '*':  0 .. int.high
+      of '+':  1 .. int.high
+      else  :  1 .. 1
+
+    result.add SimplePatternNode(token: lastToken, repeat: repeat)
+
+    if 1 != len repeat:
+      inc i, 2
+    else:
+      inc i 
+
+proc startsWith(str: string, cursor: int, pattern: SimplePattern): bool = 
+  false
+
+proc detectBlockKind(content: string, slice: Slice[int]): MdNodeKind = 
+  if   startsWith(content, slice.a, p"```\s"):  mdbCode
+  elif startsWith(content, slice.a, p"$$\s"):   mdbMath
+  elif startsWith(content, slice.a, p">\s"):    mdbQuote
+  elif startsWith(content, slice.a, p"---+\s"): mdHLine
+  elif startsWith(content, slice.a, p"#+\s"):   mdHLine
+  else: mdbPar
+
 
 proc parseMdBlock(content: string, slice: Slice[int]): Option[MdNode] = 
   # TODO detect indent
 
-  ## detect type of block
-  # if code block
-  # if math block
-  # if table
-  # if quote
-  # if 
-  # if list
-  # if header
-  # else (par) 
+  let kind = detectBlockKind(content, slice)
 
-  discard nextSpanCandidate(content, slice.a)
+  case kind
+  of mdbHeader: 
+    discard
+  
+  of mdbTable:
+     discard
+  
+  of mdbCode: 
+    discard
+  
+  of mdbMath: 
+    discard
+  
+  of mdbQuote:
+     discard
+  
+  of mdbList: 
+    discard
+  
+  of mdHLine: 
+    discard
+  
+  of mdbPar: 
+    discard nextSpanCandidate(content, slice.a)
+  
+  else: 
+    raise newException(ValueError, fmt"invalid block type '{kind}'")
 
 
 proc nextBlockCandidate(content: string, cursor: int): Slice[int] =
@@ -125,6 +205,7 @@ proc parseMarkdown(content: string): MdNode =
 # -----------------------------
 
 when isMainModule:
+  echo p"#+ "
 
   for (t, path) in walkDir "./tests":
     if t == pcFile: 
