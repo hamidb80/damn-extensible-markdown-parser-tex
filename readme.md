@@ -12,3 +12,5 @@ file (document)
 
 any of them can be nested in arbitraty depth
 the architecture should be simple and extendable
+
+what about lists and nested lists? are they block or span?
