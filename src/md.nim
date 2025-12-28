@@ -9,35 +9,35 @@ import std/[
 type
   MdNodeKind = enum
     # wrapper
-    mdWrap
+    mdWrap # XXX add indent to this
 
     # metadata
-    mdFrontMatter
+    mdFrontMatter # yaml
 
     # blocks
-    mdbHeader
-    mdbPar
+    mdbHeader # ###
+    mdbPar 
     mdbTable
-    mdbCode
-    mdbMath
-    mdbQuote
-    mdbList
+    mdbCode # ``` 
+    mdbMath # $$
+    mdbQuote # > 
+    mdbList # + - *
     mdsWikiEmbed # like photos, PDFs, etc ![[...]]
 
     # spans (inline elements)
-    mdsText
-    mdsComment
-    mdsItalic
-    mdsBold
-    mdsHighlight
-    mdsMath
-    mdsCode
-    mdsLink
-    mdsPhoto
-    mdsWikilink
+    mdsText # ...
+    mdsComment # // ...
+    mdsItalic # *...* _..._
+    mdsBold # **...**
+    mdsHighlight # ==...==
+    mdsMath # $...$
+    mdsCode # `...`
+    mdsLink # ![]()
+    mdsEmbed # ![]()
+    mdsWikilink # [[ ... ]]
 
     # other
-    mdHLine
+    mdHLine # ---
   
   MdDir = enum
     unknown
@@ -181,13 +181,13 @@ proc startsWith(str: string, cursor: int, pattern: SimplePattern): bool =
       return false
 
 
-proc detectBlockKind(content: string, slice: Slice[int]): MdNodeKind = 
+proc detectBlockKind(content: string, cursor: int): MdNodeKind = 
   # TODO support "^```\s*$" means the line that is started with ``` and ends with ``` and maybe some spaces after
-  if   startsWith(content, slice.a, p"```"): mdbCode
-  elif startsWith(content, slice.a, p"$$\s" ): mdbMath
-  elif startsWith(content, slice.a, p"> "   ): mdbQuote
-  elif startsWith(content, slice.a, p"#+ "  ): mdbHeader
-  elif startsWith(content, slice.a, p"---+" ): mdHLine
+  if   startsWith(content, cursor, p"```"): mdbCode
+  elif startsWith(content, cursor, p"$$\s" ): mdbMath
+  elif startsWith(content, cursor, p"> "   ): mdbQuote
+  elif startsWith(content, cursor, p"#+ "  ): mdbHeader
+  elif startsWith(content, cursor, p"---+" ): mdHLine
   else: mdbPar
 
 proc skipBefore(content: string, cursor: int, pattern: SimplePattern): int = 
@@ -199,32 +199,34 @@ proc skipBefore(content: string, cursor: int, pattern: SimplePattern): int =
   
   raise newException(ValueError, "cannot match end of ")
 
-proc skipChars(content: string, cursor: int, chars: set[char]): int = 
-  var i = cursor
-  while i < content.len:
+proc skipChars(content: string, slice: Slice[int], chars: set[char]): int = 
+  var i = slice.a
+  while i in slice:
     if content[i] notin chars: break
     inc i
   i # or at the end of file
 
-proc skipChar(content: string, cursor: int, ch: char): int = 
-  skipChars(content, cursor, {ch})
+proc skipChar(content: string, slice: Slice[int], ch: char): int = 
+  skipChars(content, slice, {ch})
 
-proc skipNotChar(content: string, cursor: int, ch: char): int = 
-  var i = cursor
-  while i < content.len:
+proc skipNotChar(content: string, slice: Slice[int], ch: char): int = 
+  var i = slice.a
+  while i in slice:
     if content[i] == ch: break
     inc i
   i # or at the end of file
 
-proc skipAtNextLine(content: string, cursor: int): int = 
-  skipNotChar(content, cursor, '\n')
+proc skipAtNextLine(content: string, slice: Slice[int]): int = 
+  skipNotChar(content, slice, '\n')
 
-proc skipAfterParagraphSep(content: string, cursor: int): int = 
+proc skipAfterParagraphSep(content: string, slice: Slice[int]): int = 
   # go until double \s+\n\s+\n
-  var newlines = 0
-  var i = cursor
+  # XXX there is one exception and that is if there be a list just after the paragraph
 
-  while i < content.len:
+  var newlines = 0
+  var i = slice.a
+
+  while i in slice:
     case content[i]
     of '\n':                inc newlines
     of Whitespace - {'\n'}: discard
@@ -233,31 +235,52 @@ proc skipAfterParagraphSep(content: string, cursor: int): int =
     inc i
   
   i
- 
 
-proc parseMdBlock(content: string, slice: Slice[int]): Option[MdNode] = 
-  # TODO detect indent
+proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int = 
+  case kind
+  of mdbHeader: skipAtNextLine(content, cursor .. content.high)
+  of mdHLine:   skipAtNextLine(content, cursor .. content.high)
 
-  let kind = detectBlockKind(content, slice)
+  of mdbPar:    skipAfterParagraphSep(content, cursor .. content.high)
+  of mdbQuote:  skipAfterParagraphSep(content, cursor .. content.high)
+
+  of mdbCode: 
+    let pat = "\n```"
+    let i = cursor + len "```"
+    let e = skipBefore(content, i, p pat)
+    e + len pat
+  
+  of mdbMath: 
+    let pat = "\n$$"
+    let i = cursor + len "$$"
+    let e = skipBefore(content, i, p pat)
+    e + len pat
+  
+  of mdbList:   cursor
+  of mdbTable:  cursor
+  else: 
+    raise newException(ValueError, fmt"invalid block type '{kind}'")
+
+
+# TODO detect indent
+
+proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode = 
   echo ":: ", kind
 
   case kind
   of mdbHeader: 
-    let e = skipAtNextLine(content, slice.a)
-    let i = skipChar(content, slice.a, '#')
+    let i = skipChar(content, slice, '#')
     var b = MdNode(kind: mdbHeader, priority: i-slice.a)
     # TODO now go for inline sub nodes
-    echo '(' , b.priority, ')', ' ', content[slice.a .. e-1]
+    echo 'H' , b.priority, ' ', content[slice]
   
   of mdHLine: 
-    let e = skipAtNextLine(content, slice.a)
-    echo "<hr>" , content[slice.a .. e-1]
+    echo "<hr>" , content[slice]
   
   of mdbPar: 
-    let e = skipAfterParagraphSep(content, slice.a)
-    echo "(par) ", content[slice.a .. e-1]
+    echo "(par) ", content[slice]
 
-    # discard nextSpanCandidate(content, slice.a)
+    # discard nextSpanCandidate(content, cursor)
   
   of mdbTable:
      discard
@@ -287,9 +310,10 @@ proc parseMarkdown(content: string): MdNode =
 
   var cursor = 0
   while true:
-    let i  = skipWhitespaces(content, cursor)
-    let b  = parseMdBlock(content, i .. content.high)
-    # TODO get end position from b
+    let head = skipWhitespaces(content, cursor)
+    let kind = detectBlockKind(content, cursor)
+    let tail = afterBlock(content, cursor, kind)
+    let b    = parseMdBlock(content, head .. tail-1, kind)
     break
     # cursor = i+1
 
@@ -297,11 +321,12 @@ proc parseMarkdown(content: string): MdNode =
 # -----------------------------
 
 when isMainModule:
-  echo startsWith("### hello", 0, p"#+\s+")
-  echo startsWith("# hello",   0, p"#+\s+")
-  echo startsWith("hello",     0, p"#+\s+")
-  echo startsWith("```py\n wow\n```", 0, p"```")
+  # echo startsWith("### hello", 0, p"#+\s+")
+  # echo startsWith("# hello",   0, p"#+\s+")
+  # echo startsWith("hello",     0, p"#+\s+")
+  # echo startsWith("```py\n wow\n```", 0, p"```")
 # else:
+
   for (t, path) in walkDir "./tests":
     if t == pcFile: 
       let 
