@@ -194,8 +194,21 @@ func toTex(n: MdNode, result: var string) =
   of mdsWikilink: 
     toTex MdNode(kind: mdsItalic, content: n.content), result
 
-  of mdsWikiEmbed: 
-    toTex MdNode(kind: mdsItalic, content: n.content), result
+  of mdsWikiEmbed:
+    let size = 15
+
+    result.add "\\begin{figure}[H]\n"
+    result.add "  \\centering\n"
+    result.add "  \\includegraphics[width=" 
+    result.add $size
+    result.add "cm,keepaspectratio]{"
+    result.add n.content
+    result.add "}\n"
+    result.add "  \\caption{\n"
+    for sub in n.children:
+      toTex sub, result
+    result.add "\n  }\n"
+    result.add "\\end{figure}"
 
   of mdsEmbed:
     # TODO
@@ -332,12 +345,14 @@ proc skipAtNextLine(content: string, slice: Slice[int]): int =
 
 
 proc detectBlockKind(content: string, cursor: int): MdNodeKind = 
-  if   startsWith(content, cursor, p"```"):   mdbCode
-  elif startsWith(content, cursor, p"$$\s" ): mdbMath
-  elif startsWith(content, cursor, p"> "   ): mdbQuote
-  elif startsWith(content, cursor, p"#+ "  ): mdbHeader
-  elif startsWith(content, cursor, p"---+" ): mdHLine
-  # TODO add list and embed
+  if   startsWith(content, cursor, p"```"):  mdbCode
+  elif startsWith(content, cursor, p"$$\s"): mdbMath
+  elif startsWith(content, cursor, p"> "):   mdbQuote
+  elif startsWith(content, cursor, p"#+ "):  mdbHeader
+  elif startsWith(content, cursor, p"---+"): mdHLine
+  elif startsWith(content, cursor, p"![["):  mdsWikiEmbed
+  elif startsWith(content, cursor, p"!["):   mdsEmbed
+  # TODO add list
   else: mdbPar
 
 proc skipAfterParagraphSep(content: string, slice: Slice[int]): int = 
@@ -367,6 +382,17 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
   of mdbPar:    skipAfterParagraphSep(content, cursor .. content.high)
   of mdbQuote:  skipAfterParagraphSep(content, cursor .. content.high)
 
+
+  of mdsWikiEmbed:
+    let pat = "]]"
+    let i = cursor + len "![["
+    let e = skipBefore(content, i, p pat)
+    1 + e + len pat
+
+  of mdsEmbed:
+    raise newException(ValueError, "TODO")
+
+
   of mdbCode: 
     let pat = "\n```"
     let i = cursor + len "```"
@@ -386,11 +412,12 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
 
 proc stripContent(content: string, slice: Slice[int], kind: MdNodeKind): Slice[int] = 
   case kind
-  of mdbMath:   stripSlice(content, slice, {'$'} + Whitespace)
-  of mdbCode:   stripSlice(content, slice, {'`'} + Whitespace)
-  of mdbHeader: stripSlice(content, slice, {'#'} + Whitespace)
-  of mdbQuote:  stripSlice(content, slice, {'>'} + Whitespace)
-  of mdbPar:    stripSlice(content, slice, Whitespace)
+  of mdbMath:      stripSlice(content, slice, {'$'} + Whitespace)
+  of mdbCode:      stripSlice(content, slice, {'`'} + Whitespace)
+  of mdbHeader:    stripSlice(content, slice, {'#'} + Whitespace)
+  of mdbQuote:     stripSlice(content, slice, {'>'} + Whitespace)
+  of mdbPar:       stripSlice(content, slice, Whitespace)
+  of mdsWikiEmbed: stripSlice(content, slice, {'!', '[', ']'} + Whitespace)
   else: slice
 
 proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, right: T) = 
@@ -553,11 +580,6 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         if issome v: acc.add (k, v.get)
         else: break
 
-      of mdsWikiEmbed:
-        let v = matchPairInside("![[", "]]")
-        if issome v: acc.add (k, v.get)
-        else: break
-
       of mdsWikilink:
         let r = scrabbleMatchDeepMulti(content, indexes, @["[[", "]]"])
         if isSome r:
@@ -685,15 +707,17 @@ proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode 
   
 
   of mdbMath: 
-    MdNode(kind: mdbMath, content: content[contentslice])
+    MdNode(kind: mdbMath, 
+           content: content[contentslice])
   
   of mdbCode: 
     # TODO detect lang
-    MdNode(kind: mdbMath, content: content[contentslice])
+    MdNode(kind: mdbMath, 
+           content: content[contentslice])
 
-  of mdbList: 
-    var b = MdNode(kind: mdbList)
-    b
+  of mdsWikiEmbed:
+    MdNode(kind: mdsWikiEmbed, 
+           content: content[contentslice])
   
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
