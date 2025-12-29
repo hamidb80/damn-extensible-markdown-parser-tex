@@ -2,6 +2,7 @@ import std/[
   strutils, strformat, 
   lists, sequtils,
   tables,
+  algorithm,
   options,
   os,
 ]
@@ -352,6 +353,8 @@ proc substract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[i
   of 2: replace(ns, n, subs[0], subs[1])
   else: raise newException(ValueError, "invalid subs: " & $subs.len)
 
+proc `+`(n,m: Slice[int]): Slice[int] = 
+  (n.a + m.a) .. (n.b + m.b)
 
 proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
   var j = 0
@@ -394,6 +397,7 @@ proc scrabbleMatchDeepMulti(content: string, indexes: var DoublyLinkedList[Slice
     raise newException(ValueError, "cannot match")
 
 proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] = 
+  var acc: seq[tuple[kind: MdNodeKind, slice: Slice[int]]]
   var indexes = toDoublyLinkedList([slice])
 
   for k in [
@@ -423,19 +427,29 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
       case k 
       of mdsBold: 
         let v = matchPairInside("**", "**")
-        if issome v: echo (k, v.get)
+        if issome v: acc.add (k, v.get)
         else: break
         
 
       of mdsItalic:
         #  TODO "*" .. "*"
         let v = matchPairInside("_", "_")
-        if issome v: echo (k, v.get)
+        if issome v: acc.add (k, v.get)
         else: break
 
       of mdsHighlight:
         let v = matchPairInside("==", "==")
-        if issome v: echo (k, v.get)
+        if issome v: acc.add (k, v.get)
+        else: break
+
+      of mdsWikiEmbed:
+        let v = matchPairInside("![[", "]]")
+        if issome v: acc.add (k, v.get)
+        else: break
+
+      of mdsWikilink:
+        let v = matchPairInside("[[", "]]")
+        if issome v: acc.add (k, v.get)
         else: break
 
       of mdsCode:
@@ -443,7 +457,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         if isSome r:
           let bounds = r.get
           let area = bounds[0].b+1 .. bounds[1].a-1
-          echo (k, area), " `", content[area], "`"
+          acc.add (k, area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
               indexes.substract ni, area
@@ -455,22 +469,13 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         if isSome r:
           let bounds = r.get
           let area = bounds[0].b+1 .. bounds[1].a-1
-          echo (k, area), " $", content[area], "$"
+          acc.add (k, area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
               indexes.substract ni, area
         else:
           break
 
-      of mdsWikiEmbed:
-        let v = matchPairInside("![[", "]]")
-        if issome v: echo (k, v.get)
-        else: break
-
-      of mdsWikilink:
-        let v = matchPairInside("[[", "]]")
-        if issome v: echo (k, v.get)
-        else: break
 
       # of mdsEmbed:
       #   let r = scrabbleMatchDeepMulti(content, indexes, @["![", "](", ")"])
@@ -502,13 +507,19 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
       of mdsText:
         for i in indexes: # all other non matched scrabbles
           # TODO remove scape characters here
-          echo (mdsText, i), " <", content[i], ">"
+          # echo (k, i), " <", content[i], ">"
+          acc.add (k, i)
         break
 
       else: 
         break
 
   # aggregate
+  proc cmpFirst(a,b: (MdNodeKind, Slice[int])): int = 
+    cmp(a[1].a, b[1].a)
+
+  acc.sort cmpFirst
+  echo acc
 
 proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode = 
   let contentslice = stripContent(content, slice, kind)
