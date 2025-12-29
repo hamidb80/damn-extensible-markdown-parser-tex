@@ -87,13 +87,24 @@ const notfound = -1
 
 # --------------------------------------------
 
+const MdLeafNodes = {mdsText, 
+                    mdsMath, mdsCode, 
+                    mdsEmbed, mdsWikiEmbed, mdsWikilink, 
+                    mdbMath, mdbCode}
+
+func empty(a: seq): bool = a.len == 0
+
 func xmlRepr(n: MdNode, result: var string) = 
   result.add "<"
   result.add $n.kind
   result.add ">"
 
+  case n.kind
+  of MdLeafNodes: result.add n.content
+  else          : discard
+
   for sub in n.children:
-    xmlRepr n, result
+    xmlRepr sub, result
 
   result.add "</"
   result.add $n.kind
@@ -345,6 +356,10 @@ proc subtract(n, m: Slice[int]): seq[Slice[int]] =
 proc intersects(n, m: Slice[int]): bool =
   subtract(n, m) != @[n]
 
+proc contains(n, m: Slice[int]): bool =
+  m.a in n and 
+  m.b in n
+
 proc substract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
   let subs = subtract(n.value, m)
   case subs.len
@@ -404,14 +419,14 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     # sorted by priority
     mdsCode,
     mdsMath,
+    mdsWikiEmbed,
+    mdsWikilink,
+    mdsEmbed,
+    mdsLink,
     mdsBold,
     mdsItalic,
     mdsHighlight,
-    mdsLink,
-    mdsEmbed,
-    mdsWikilink,
     mdsComment,
-    mdsWikiEmbed,
     mdsText,
   ]:
     # TODO support escape \ in patterns
@@ -448,9 +463,16 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         else: break
 
       of mdsWikilink:
-        let v = matchPairInside("[[", "]]")
-        if issome v: acc.add (k, v.get)
-        else: break
+        let r = scrabbleMatchDeepMulti(content, indexes, @["[[", "]]"])
+        if isSome r:
+          let bounds = r.get
+          let area = bounds[0].b+1 .. bounds[1].a-1
+          acc.add (k, area)
+          for ni in indexes.nodes:
+            if ni.value.intersects area:
+              indexes.substract ni, area
+        else:
+          break
 
       of mdsCode:
         let r = scrabbleMatchDeepMulti(content, indexes, @["`", "`"])
@@ -521,6 +543,32 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
   acc.sort cmpFirst
   echo acc
 
+  var root = MdNode(kind: mdWrap) # XXX define wrap
+  var stack: seq[tuple[node: MdNode, slice: Slice[int]]] = @[(root, slice)]
+
+  for c in acc:
+
+    let node = 
+      case c.kind
+      of MdLeafNodes: 
+        MdNode(kind: c.kind, content: content[c.slice])
+      else:
+        MdNode(kind: c.kind)
+
+    while true:
+      if c.slice in stack[^1].slice:
+        stack[^1].node.children.add node
+        
+        case node.kind
+        of MdLeafNodes: discard
+        else:           stack.add (node, c.slice)
+        break
+
+      else:
+        discard stack.pop
+
+  root.children
+
 proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode = 
   let contentslice = stripContent(content, slice, kind)
   echo content[contentslice]
@@ -570,6 +618,7 @@ proc parseMarkdown(content: string): MdNode =
     echo ":: ", kind, ' ', head .. tail, ' ', '[', content[head], ']'
     if tail - head <= 0: break
     let b    = parseMdBlock(content, head .. tail-1, kind)
+    result.children.add b
     cursor = tail
 
  
