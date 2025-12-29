@@ -11,7 +11,7 @@ import std/[
 type
   MdNodeKind = enum
     # wrapper
-    mdWrap # XXX add indent to this
+    mdWrap # XXX add indent to this (for indent detection, like in lists)
 
     # metadata
     mdFrontMatter ## yaml
@@ -112,6 +112,76 @@ func xmlRepr(n: MdNode, result: var string) =
 
 func xmlRepr(n: MdNode): string = 
   xmlRepr n, result
+
+
+func toTex(n: MdNode, result: var string) = 
+  case n.kind
+  of mdWrap:
+    for sub in n.children:
+      toTex sub, result
+      result.add "\n\n"
+  
+  of mdbHeader:
+    let tag = 
+      case n.priority
+      of 1: "section"
+      of 2: "subsection"
+      of 3: "subsubsection"
+      else: "par"
+
+    result.add '\\'
+    result.add tag
+    result.add '{'
+    for sub in n.children:
+      toTex sub, result
+    result.add '}'
+
+  of mdbPar:
+    for sub in n.children:
+      toTex sub, result
+
+  of mdsCode: 
+    result.add "\\texttt{"
+    result.add n.content
+    result.add '}'
+
+  of mdsMath: 
+    result.add "\\("
+    result.add n.content
+    result.add "\\)"
+
+  of mdbMath: 
+    result.add "\\[\n"
+    result.add n.content
+    result.add "\\]\n"
+
+  of mdsBold: 
+    result.add "\\textbf{"
+    result.add n.content
+    result.add "}"
+
+  of mdsItalic: 
+    result.add "\\textit{"
+    result.add n.content
+    result.add "}"
+
+  of mdsText: 
+    result.add n.content
+
+  of mdHLine: 
+    result.add "\\clearpage"
+
+  of mdsWikilink: 
+    toTex MdNode(kind: mdsItalic, content: n.content), result
+
+  of mdsWikiEmbed: 
+    toTex MdNode(kind: mdsItalic, content: n.content), result
+
+  else:
+    raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
+
+func toTex(n: MdNode): string = 
+  toTex n, result
 
 
 func at(str: string, index: int): char = 
@@ -541,7 +611,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     cmp(a[1].a, b[1].a)
 
   acc.sort cmpFirst
-  echo acc
+  # echo acc
 
   var root = MdNode(kind: mdWrap) # XXX define wrap
   var stack: seq[tuple[node: MdNode, slice: Slice[int]]] = @[(root, slice)]
@@ -571,7 +641,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
 
 proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode = 
   let contentslice = stripContent(content, slice, kind)
-  echo content[contentslice]
+  # echo content[contentslice]
 
   case kind
   
@@ -615,7 +685,7 @@ proc parseMarkdown(content: string): MdNode =
     let head = skipWhitespaces(content, cursor)
     let kind = detectBlockKind(content, head)
     let tail = afterBlock(content, head, kind)
-    echo ":: ", kind, ' ', head .. tail, ' ', '[', content[head], ']'
+    # echo ":: ", kind, ' ', head .. tail, ' ', '[', content[head], ']'
     if tail - head <= 0: break
     let b    = parseMdBlock(content, head .. tail-1, kind)
     result.children.add b
@@ -625,7 +695,6 @@ proc parseMarkdown(content: string): MdNode =
 # -----------------------------
 
 # TODO auto link finder (convert normal text -> link)
-#  TODO detect indent
 
 when isMainModule:
   # echo startsWith("### hello", 0, p"#+\s+")
@@ -651,7 +720,8 @@ when isMainModule:
         doc     = parseMarkdown content
       
       echo xmlRepr doc
-
+      echo "\n"
+      echo toTex doc
 
 #[
 separate blocks
