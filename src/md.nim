@@ -1,3 +1,31 @@
+#[
+
+---- Initial Motivation --------------------
+  from: https://github.com/miyuchina/mistletoe/issues/257
+  > This would require a major API (and internals) rework though, 
+  > while we would also need to think about backwards compatibility - 
+  > so apparently not a trivial stuff.
+
+
+  we're in 2025, age of AI, 
+  and still there is not a single simple markdown *extensible* 
+  markdown parser without quirks 
+  in any programming language open source.
+
+  I hate these noobie developers that 
+  they would say "this requires major blah blah"
+  instead of actually doing the right work.
+
+  this is an attempt to end my struggles and headaches, 
+  IN JUST A SINGLE DAMN FILE.
+
+---- Data Structure --------------------
+
+wrapper 
+  consists of blocks
+           consists of spans
+]#
+
 import std/[
   strutils, strformat, 
   lists,
@@ -93,7 +121,7 @@ const MdLeafNodes = {mdsText,
 
 func empty(a: seq): bool = a.len == 0
 
-func xmlRepr(n: MdNode, result: var string) = 
+func toXml(n: MdNode, result: var string) = 
   result.add "<"
   result.add $n.kind
   result.add ">"
@@ -103,14 +131,14 @@ func xmlRepr(n: MdNode, result: var string) =
   else          : discard
 
   for sub in n.children:
-    xmlRepr sub, result
+    toXml sub, result
 
   result.add "</"
   result.add $n.kind
   result.add ">"
 
-func xmlRepr(n: MdNode): string = 
-  xmlRepr n, result
+func toXml(n: MdNode): string = 
+  toXml n, result
 
 
 func toTex(n: MdNode, result: var string) = 
@@ -307,9 +335,10 @@ proc startsWith(str: string, cursor: int, pattern: SimplePattern): bool =
       return true
 
     if i >= str.len: 
-      return false
+      return j == pattern.high and c in pattern[j].repeat
     
     # let cond = matches(str[i], pattern[j].token)
+    # echo (str[i], pattern[j], cond)
 
     if matches(str[i], pattern[j].token):
       inc c
@@ -830,17 +859,18 @@ proc preprocess(root: sink MdNode): MdNode =
 
 when isMainModule:
   # tests ---------------------------
-  # echo startsWith("### hello", 0, p"#+\s+")
-  # echo startsWith("# hello",   0, p"#+\s+")
-  # echo startsWith("hello",     0, p"#+\s+")
-  # echo startsWith("```py\n wow\n```", 0, p"```")
-  # echo startsWith("-----", 0, p"---+")
-  # echo startsWith("\n$$", 0, p "\n$$")
+  assert     startsWith("### hello", 0, p"#+\s+")
+  assert     startsWith("# hello",   0, p"#+\s+")
+  assert not startsWith("hello",     0, p"#+\s+")
+  assert     startsWith("```py\n wow\n```", 0, p"```")
+  assert     startsWith("-----", 0, p"---+")
+  assert     startsWith("\n$$", 0, p "\n$$")
 
 #   const t = "wow how are you man??"
 #   var indexes = toDoublyLinkedList([0..<t.len])
 #   let res = scrabbleMatchDeep(t, indexes, "are")
 #   echo ':', t[res.get], ':', indexes
+
 # else:
   for (t, path) in walkDir "./tests/temp/":
     if t == pcFile: 
@@ -853,25 +883,5 @@ when isMainModule:
         doc     = parseMarkdown content
         newdoc  = preprocess doc
       
-      # echo xmlRepr newdoc
-      writeFile "./play.xml", xmlRepr newdoc
-      writeFile "./play.tex",  toTex   newdoc
-
-#[
-separate blocks
-it's not so easy as a simple RegEx 
-since there might be code blocks or math blocks
-
-for each blocks
-find span tokens
-
-the overall picture
-file (document) 
-      consists of block
-                  consists of span
-
-any of them can be nested in arbitraty depth
-the architecture should be simple and extendable
-
-what about lists and nested lists? are they block or span?
-]#
+      writeFile "./play.xml", toXml newdoc
+      writeFile "./play.tex", toTex newdoc
