@@ -156,12 +156,12 @@ func toTex(n: MdNode, result: var string) =
   of mdbMath: 
     result.add "\\[\n"
     result.add n.content
-    result.add "\n\\]\n"
+    result.add "\n\\]"
 
   of mdbCode:
     result.add "\\begin{verbatim}\n"
     result.add n.content
-    result.add "\n\\end{verbatim}\n"
+    result.add "\n\\end{verbatim}"
 
   of mdsBold: 
     result.add "\\textbf{"
