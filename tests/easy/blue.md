@@ -9,4 +9,4 @@ this is [[wikilink]] `i++` **I _don't_ know** ... **wow** _another_ Oh I love ma
 
 haha new page welcomeee
 ![[vid.png]]
-// comment on this
+// this **is** a comment

@@ -633,13 +633,18 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
       #   else:
       #     break
 
-      # of mdsComment:
-      #   let r = scrabbleMatchDeepMulti(content, indexes, @["//", "$"])
-      #   if isSome r:
-      #     let bounds = r.get
-      #     let span = bounds[0].b+1 .. bounds[1].a-1
-      #   else:
-      #     break
+      of mdsComment:
+        let head = scrabbleMatchDeep(content, indexes, "// ")
+        if issome head:
+          let match = scrabbleMatchDeep(content, indexes, "\n")
+          let tail = 
+            if issome match: match.get.b-1
+            else: slice.b
+          let span = (head.get.b + 1) .. tail
+          acc.add (k, span)
+        else:
+          break
+
 
       of mdsText:
         for i in indexes: # all other non matched scrabbles
