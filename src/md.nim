@@ -1,7 +1,6 @@
 import std/[
   strutils, strformat, 
-  lists, sequtils,
-  tables,
+  lists,
   algorithm,
   options,
   os,
@@ -35,7 +34,7 @@ type
     mdsEmbed ## ![]()
     mdsWikilink ## [[ ... ]]
     mdsComment ## // ...
-    mdsWikiEmbed ## like photos, PDFs, etc ![[...]]
+    mdWikiEmbed ## like photos, PDFs, etc ![[...]]
     mdsText ## processed text
     # mdsTag ## #...
 
@@ -89,7 +88,7 @@ const notfound = -1
 
 const MdLeafNodes = {mdsText, 
                     mdsMath, mdsCode, 
-                    mdsEmbed, mdsWikiEmbed, mdsWikilink, 
+                    mdsEmbed, mdWikiEmbed, mdsWikilink, 
                     mdbMath, mdbCode}
 
 func empty(a: seq): bool = a.len == 0
@@ -194,7 +193,7 @@ func toTex(n: MdNode, result: var string) =
   of mdsWikilink: 
     toTex MdNode(kind: mdsItalic, content: n.content), result
 
-  of mdsWikiEmbed:
+  of mdWikiEmbed:
     let size = 15
 
     result.add "\\begin{figure}[H]\n"
@@ -217,7 +216,14 @@ func toTex(n: MdNode, result: var string) =
   of mdFrontMatter:
     discard
 
-  of mdbList, mdbTable, mdsLink, mdbQuote:
+  of mdbList:
+    result.add "\\begin{itemize}\n"
+    for sub in n.children:
+      result.add "\\item "
+      toTex sub, result
+    result.add "\n\\end{itemize}"
+
+  of mdbTable, mdsLink, mdbQuote:
     raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
 
 func toTex(n: MdNode): string = 
@@ -264,6 +270,22 @@ proc matches(ch: char, pt: SimplePatternToken): bool =
     case pt.meta
     of spmWhitespace: ch in Whitespace
 
+
+proc find(content: string, slice: Slice[int], sub: string): int = 
+  var i = slice.a
+  var j = 0 
+  
+  while i in slice:
+    if content[i] == sub[j]:
+      inc j
+      if j == sub.len: return i-j+1
+    else:
+      dec i, j
+      reset j
+
+    inc i
+
+  notfound
 
 proc skipWhitespaces(content: string, cursor: int): int = # : SkipWhitespaceReport = 
   var i = cursor
@@ -350,12 +372,15 @@ proc detectBlockKind(content: string, cursor: int): MdNodeKind =
   elif startsWith(content, cursor, p"> "):   mdbQuote
   elif startsWith(content, cursor, p"#+ "):  mdbHeader
   elif startsWith(content, cursor, p"---+"): mdHLine
-  elif startsWith(content, cursor, p"![["):  mdsWikiEmbed
+  elif startsWith(content, cursor, p"![["):  mdWikiEmbed
   elif startsWith(content, cursor, p"!["):   mdsEmbed
-  # TODO add list
+  elif startsWith(content, cursor, p"- "):   mdbList
+  elif startsWith(content, cursor, p"+ "):   mdbList
+  elif startsWith(content, cursor, p"* "):   mdbList
+  elif startsWith(content, cursor, p"1. "):  mdbList
   else: mdbPar
 
-proc skipAfterParagraphSep(content: string, slice: Slice[int]): int = 
+proc skipAfterParagraphSep(content: string, slice: Slice[int], kind: MdNodeKind): int = 
   ## go until double \s+\n\s+\n
 
   var newlines = 0
@@ -365,7 +390,7 @@ proc skipAfterParagraphSep(content: string, slice: Slice[int]): int =
     case content[i]
     of '\n':                
       inc newlines
-      if detectBlockKind(content, i+1) != mdbPar: break # there is one exception and that is if there be a list just after the paragraph or $$ or ``` or ![[ or ---- :(
+      if detectBlockKind(content, i+1) != kind: break # there is one exception and that is if there be a list just after the paragraph or $$ or ``` or ![[ or ---- :(
 
     of Whitespace - {'\n'}: discard
     elif 2 <= newlines:     break
@@ -379,11 +404,12 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
   of mdbHeader: skipAtNextLine(content, cursor .. content.high)
   of mdHLine:   skipAtNextLine(content, cursor .. content.high)
 
-  of mdbPar:    skipAfterParagraphSep(content, cursor .. content.high)
-  of mdbQuote:  skipAfterParagraphSep(content, cursor .. content.high)
+  of mdbPar:    skipAfterParagraphSep(content, cursor .. content.high, mdbPar)
+  of mdbQuote:  skipAfterParagraphSep(content, cursor .. content.high, mdbPar)
+  of mdbList:   skipAfterParagraphSep(content, cursor .. content.high, mdbList)
 
 
-  of mdsWikiEmbed:
+  of mdWikiEmbed:
     let pat = "]]"
     let i = cursor + len "![["
     let e = skipBefore(content, i, p pat)
@@ -405,8 +431,7 @@ proc afterBlock(content: string, cursor: int, kind: MdNodeKind): int =
     let e = skipBefore(content, i, p pat)
     1 + e + len pat
   
-  of mdbList:   cursor
-  of mdbTable:  cursor
+
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
@@ -417,7 +442,7 @@ proc stripContent(content: string, slice: Slice[int], kind: MdNodeKind): Slice[i
   of mdbHeader:    stripSlice(content, slice, {'#'} + Whitespace)
   of mdbQuote:     stripSlice(content, slice, {'>'} + Whitespace)
   of mdbPar:       stripSlice(content, slice, Whitespace)
-  of mdsWikiEmbed: stripSlice(content, slice, {'!', '[', ']'} + Whitespace)
+  of mdWikiEmbed: stripSlice(content, slice, {'!', '[', ']'} + Whitespace)
   else: slice
 
 proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, right: T) = 
@@ -542,7 +567,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     # sorted by priority
     mdsCode,
     mdsMath,
-    mdsWikiEmbed,
+    mdWikiEmbed,
     mdsWikilink,
     mdsEmbed,
     mdsLink,
@@ -698,31 +723,62 @@ proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode 
   
 
   of mdbHeader: 
-    MdNode(kind: mdbHeader, 
+    MdNode(kind: kind,
            priority: skipChar(content, slice, '#') - slice.a,
            children: parseMdSpans(content, contentslice))
   
   of mdbPar: 
-    MdNode(kind: mdbPar, 
+    MdNode(kind: kind,
            children: parseMdSpans(content, contentslice))
 
   of mdbQuote:
-    MdNode(kind: mdbQuote, 
+    MdNode(kind: kind,
            children: parseMdSpans(content, contentslice))
   
 
   of mdbMath: 
-    MdNode(kind: mdbMath, 
+    MdNode(kind: kind,
            content: content[contentslice])
   
   of mdbCode: 
     # TODO detect lang
-    MdNode(kind: mdbMath, 
+    MdNode(kind: kind,
            content: content[contentslice])
 
-  of mdsWikiEmbed:
-    MdNode(kind: mdsWikiEmbed, 
+  of mdWikiEmbed:
+    MdNode(kind: kind,
            content: content[contentslice])
+
+  of mdbList:
+    var b = MdNode(kind: mdbList)
+
+    # list indicator
+    let id = content[slice.a .. slice.a + 1]
+    if id notin ["- ", "+ ", "* "]: # TODO add numbered list
+      raise newException(ValueError, fmt"invalid list indicator: '{id}'")
+
+    let idcc = "\n" & id
+
+    var acc: seq[Slice[int]]
+    var i = slice.a
+
+    while i in slice:
+      let f = find(content, i .. slice.b, idcc)
+      
+      let j = 
+        case f
+        of notfound: slice.b
+        else:        f
+
+      acc.add (i+idcc.len-1)..(j-1)
+
+      i = j+1
+    
+    for s in acc:
+      b.children.add MdNode(kind: mdbPar,
+                            children: parseMdSpans(content, s))
+
+    b
   
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
@@ -735,6 +791,7 @@ proc parseMarkdown(content: string): MdNode =
     let head = skipWhitespaces(content, cursor)
     let kind = detectBlockKind(content, head)
     let tail = afterBlock(content, head, kind)
+    # echo (kind, head .. tail, content[head ..< tail])
     if tail - head <= 0: break
     let b    = parseMdBlock(content, head .. tail-1, kind)
     result.children.add b
@@ -752,7 +809,7 @@ proc preprocess(root: sink MdNode): MdNode =
       newChildren.add root.children[i]
 
       if i < root.children.len - 1 and 
-         root.children[i].kind   == mdsWikiEmbed and 
+         root.children[i].kind   == mdWikiEmbed and 
          root.children[i+1].kind == mdbPar and
          root.children[i+1].children[0].kind == mdsComment:
            root.children[i].children.add root.children[i+1].children[0].children
@@ -785,7 +842,7 @@ when isMainModule:
 #   let res = scrabbleMatchDeep(t, indexes, "are")
 #   echo ':', t[res.get], ':', indexes
 # else:
-  for (t, path) in walkDir "./tests/temp":
+  for (t, path) in walkDir "./tests/temp/":
     if t == pcFile: 
   # block: 
       # let path = "./tests/hard/reg.md"

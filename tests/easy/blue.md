@@ -18,3 +18,9 @@ where $w_k$ is estimated weight.
 it punishes you for larger weights ( $w_k$ ), 
 
 different values for $\lambda$ mean:
+
+- $\simeq0$ no effect
+- $=1$ normal
+- $>1$ significant effect
+- $\infty$ straight line // like X axis at y=mean 
+
