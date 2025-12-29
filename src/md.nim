@@ -372,8 +372,8 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     # sorted by priority
     mdsCode,
     mdsMath,
-    mdsItalic,
     mdsBold,
+    mdsItalic,
     mdsHighlight,
     mdsLink,
     mdsEmbed,
@@ -384,46 +384,68 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
   ]:
     # TODO support escape \
 
-    # should go deep to find text
- 
+    proc matchpair(l, r: string): Option[Slice[int]] = 
+      let r = scrabbleMatchDeepMulti(content, indexes, @[l, r])
+      if isSome r:
+        let bounds = r.get
+        let span = bounds[0].b+1 .. bounds[1].a-1
+        result = some span
+      
+    template matchpairflow(l, r): untyped {.dirty.} = 
+      let v = matchpair(l, r)
+      if issome v: echo (k, v.get)
+      else: break
+
     while true:
       case k 
-      of mdsBold:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["**", "**"])
-        if isSome r:
-          let bounds = r.get
-          let span = bounds[0].b+1 .. bounds[1].a-1
-          echo span
-        else:
-          break
+      of mdsBold: 
+        matchpairflow("**", "**")
 
-      # of mdsItalic:
-      #   "*" .. "*"
-      #   "_" .. "_"
+      of mdsItalic:
+        #  TODO "*" .. "*"
+        matchpairflow("_", "_")
 
-      # of mdsHighlight:
-      #   "==" .. "=="
+      of mdsHighlight:
+        matchpairflow("==", "==")
 
-      # of mdsCode:
-      #   "`" .. "`"
+      of mdsCode:
+        matchpairflow("`", "`")
 
-      # of mdsMath:
-      #   "$" .. "$"
+      of mdsMath:
+        matchpairflow("$", "$")
 
-      # of mdsWikiEmbed:
-      #   "![[" .. "]]"
+      of mdsWikiEmbed:
+        matchpairflow("![[", "]]")
 
-      # of mdsWikilink:
-      #   "[[" .. "]]"
+      of mdsWikilink:
+        matchpairflow("[[", "]]")
 
       # of mdsEmbed:
-      #   "![" .. "](" .. ")"
+      #   let r = scrabbleMatchDeepMulti(content, indexes, @["![", "](", ")"])
+      #   if isSome r:
+      #     let bounds = r.get
+      #     let span = bounds[0].b+1 .. bounds[1].a-1
+      #     echo (k, span)
+      #   else:
+      #     break
 
       # of mdsLink:
-      #   "[" .. "](" .. ")"
+      #   let r = scrabbleMatchDeepMulti(content, indexes, @["[", "](", ")"])
+      #   if isSome r:
+      #     let bounds = r.get
+      #     let span = bounds[0].b+1 .. bounds[1].a-1
+      #     echo (k, span)
+      #   else:
+      #     break
 
       # of mdsComment:
-      #   "//" .. "\n"
+      #   let r = scrabbleMatchDeepMulti(content, indexes, @["//", "$"])
+      #   if isSome r:
+      #     let bounds = r.get
+      #     let span = bounds[0].b+1 .. bounds[1].a-1
+      #     echo (k, span)
+      #   else:
+      #     break
 
       # of mdsText:
       #   # TODO detect lang dir
