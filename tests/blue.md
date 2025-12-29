@@ -32,16 +32,17 @@ $$
 
 my list
 1. a
-2. b
-3. c 
-4. d
-5. e
-6. f
+2. b b
+3. c c c
+4. d d d d
+5. e e e
+6. f f
 7. g
-8. h
-9. i
-10. j
+8. h h
+9. i i i
+10. j j
 11. k
+
 
 - $\simeq0$ no effect
 - $=1$ normal
