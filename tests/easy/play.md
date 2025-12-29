@@ -1,3 +1,3 @@
 # section
 
-this is [[wikilink]]  **I _don't_ know** ... **wow** another
+this is [[wikilink]] `i++` **I _don't_ know** ... **wow** another

@@ -304,7 +304,7 @@ proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, rig
 proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], repl: T) = 
   n.value = repl
 
-proc subtract[int](n, m: Slice[int]): seq[Slice[int]] = 
+proc subtract(n, m: Slice[int]): seq[Slice[int]] = 
   # case 1
   # n-----------n
   #    m----m
@@ -341,6 +341,18 @@ proc subtract[int](n, m: Slice[int]): seq[Slice[int]] =
   if n.b > m.b: # end only
     result.add max(n.a, m.b+1) .. n.b
 
+proc intersects(n, m: Slice[int]): bool =
+  subtract(n, m) != @[n]
+
+proc substract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
+  let subs = subtract(n.value, m)
+  case subs.len
+  of 0: ns.remove n
+  of 1: replace(ns, n, subs[0])
+  of 2: replace(ns, n, subs[0], subs[1])
+  else: raise newException(ValueError, "invalid subs: " & $subs.len)
+
+
 proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
   var j = 0
   var n: DoublyLinkedNode[Slice[int]]
@@ -361,11 +373,7 @@ proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]
 
   # no change the indexes
   if not isNil n:
-    let subs = subtract(n.value, result.get)
-    case subs.len
-    of 1: replace(indexes, n, subs[0])
-    of 2: replace(indexes, n, subs[0], subs[1])
-    else: raise newException(ValueError, "invalid subs")
+    substract indexes, n, result.get
 
 proc scrabbleMatchDeepMulti(content: string, indexes: var DoublyLinkedList[Slice[int]], pattern: seq[string]): Option[seq[Slice[int]]] = 
   var acc: seq[Slice[int]]
@@ -434,7 +442,12 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         let r = scrabbleMatchDeepMulti(content, indexes, @["`", "`"])
         if isSome r:
           let bounds = r.get
-          # indexes.subtract bounds[0].b+1 .. bounds[1].a-1
+          let area = bounds[0].b+1 .. bounds[1].a-1
+          for ni in indexes.nodes:
+            if ni.value.intersects area:
+              # echo "REMOVED ", (ni.value, area)
+              indexes.substract ni, area
+          # indexes.subtract 
         break
 
       of mdsMath:
@@ -484,7 +497,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
       of mdsText:
         for i in indexes: # all other non matched scrabbles
           # TODO remove scape characters here
-          echo (mdsText, i)
+          echo (mdsText, i), " <", content[i], ">"
         break
 
       else: 
