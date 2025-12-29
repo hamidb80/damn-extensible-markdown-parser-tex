@@ -8,5 +8,13 @@ this is [[wikilink]] `i++` **I _don't_ know** ... **wow** _another_ Oh I love ma
 ## Formula
 
 haha new page welcomeee
-![[vid.png]]
+![[frog.jpg]]
 // this **is** a comment
+
+$$
+\hat{y} = w_0 + w_1x_1 + w_2x_2 + \cdots + w_nx_n
+$$
+where $w_k$ is estimated weight. 
+it punishes you for larger weights ( $w_k$ ), 
+
+different values for $\lambda$ mean:

@@ -154,7 +154,7 @@ func toTex(n: MdNode, result: var string) =
   of mdbMath: 
     result.add "\\[\n"
     result.add n.content
-    result.add "\\]\n"
+    result.add "\n\\]\n"
 
   of mdbCode:
     result.add "\\begin{verbatim}\n"
@@ -198,16 +198,16 @@ func toTex(n: MdNode, result: var string) =
     let size = 15
 
     result.add "\\begin{figure}[H]\n"
-    result.add "  \\centering\n"
-    result.add "  \\includegraphics[width=" 
+    result.add "\\centering\n"
+    result.add "\\includegraphics[width=" 
     result.add $size
     result.add "cm,keepaspectratio]{"
     result.add n.content
     result.add "}\n"
-    result.add "  \\caption{\n"
+    result.add "\\caption{"
     for sub in n.children:
       toTex sub, result
-    result.add "\n  }\n"
+    result.add "}\n"
     result.add "\\end{figure}"
 
   of mdsEmbed:
@@ -616,7 +616,6 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         else:
           break
 
-
       # of mdsEmbed:
       #   let r = scrabbleMatchDeepMulti(content, indexes, @["![", "](", ")"])
       #   if isSome r:
@@ -740,6 +739,31 @@ proc parseMarkdown(content: string): MdNode =
     result.children.add b
     cursor = tail
 
+proc preprocess(root: sink MdNode): MdNode = 
+  case root.kind
+  of mdWrap:
+
+    var newChildren: seq[MdNode]
+    var i = 0
+
+    # move comment just after an image to its description
+    while i < root.children.len - 1:
+      newChildren.add root.children[i]
+
+      if root.children[i].kind   == mdsWikiEmbed and 
+         root.children[i+1].kind == mdbPar and
+         root.children[i+1].children[0].kind == mdsComment:
+           root.children[i].children.add root.children[i+1].children[0].children
+           inc i
+      inc i
+
+    root.children = newChildren
+
+  else:
+    discard
+  
+  root
+
  
 # -----------------------------
 
@@ -767,10 +791,11 @@ when isMainModule:
       let 
         content = readFile path
         doc     = parseMarkdown content
+        newdoc  = preprocess doc
       
-      echo xmlRepr doc
+      echo xmlRepr newdoc
       echo "\n"
-      echo toTex doc
+      echo toTex newdoc
 
 #[
 separate blocks
