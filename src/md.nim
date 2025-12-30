@@ -266,17 +266,17 @@ proc p(pattern: string): SimplePattern =
       of '\\':
         inc i
         case pattern.at(i)
-        of 's':  SimplePatternToken(kind: sptMeta, meta: spmWhitespace)
-        of 'd':  SimplePatternToken(kind: sptMeta, meta: spmDigit)
-        of '\\': SimplePatternToken(kind: sptChar, ch: pattern[i])
+        of 's':        SimplePatternToken(kind: sptMeta, meta: spmWhitespace)
+        of 'd':        SimplePatternToken(kind: sptMeta, meta: spmDigit)
+        of '\\', '+':  SimplePatternToken(kind: sptChar, ch: pattern[i])
         else:    raise newException(ValueError, fmt"invalid meta character '{pattern.at(i+1)}'")
       else:     
           SimplePatternToken(kind: sptChar, ch: pattern[i])
 
     let repeat = 
       case pattern.at(i+1)
-      of '^':  0 .. 0
-      of '*':  0 .. int.high
+      # of '^':  0 .. 0
+      # of '*':  0 .. int.high
       of '+':  1 .. int.high
       else  :  1 .. 1
 
@@ -346,8 +346,9 @@ proc startsWith(str: string, cursor: int, pattern: SimplePattern): int =
       inc c
       inc i
 
-      if c >= pattern[j].repeat.b:
+      if c == pattern[j].repeat.b:
         inc j
+        reset c
 
     elif c in pattern[j].repeat:
         c = 0
@@ -406,7 +407,7 @@ proc detectBlockKind(content: string, cursor: int): MdNodeKind =
   elif startsWith(content, cursor, p"![[")   != notfound: mdWikiEmbed
   elif startsWith(content, cursor, p"![")    != notfound: mdsEmbed
   elif startsWith(content, cursor, p"- ")    != notfound or
-       startsWith(content, cursor, p"+ ")    != notfound or
+       startsWith(content, cursor, p"\+ ")   != notfound or
        startsWith(content, cursor, p"* ")    != notfound or 
        startsWith(content, cursor, p"\d+. ") != notfound: mdbList
   else: mdbPar
@@ -552,8 +553,10 @@ proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]
 
   block find:
     for ni in indexes.nodes:
-      let cindexes = ni.value # consequtive indexes
-      for i in cindexes:
+      let area = ni.value # consequtive indexes
+      for i in area:
+        let cond = (i == 0 or content[i-1] != '\\') and # considers escape
+           pattern[j] == content[i]
         if (i == 0 or content[i-1] != '\\') and # considers escape
            pattern[j] == content[i]: 
           inc j
@@ -585,6 +588,7 @@ proc scrabbleMatchDeepMulti(content: string, indexes: var DoublyLinkedList[Slice
   elif acc.len == pattern.len:
     return some acc
   else:
+    # echo scrabbleMatchDeep(content, indexes, pattern[0])
     raise newException(ValueError, "cannot match")
 
 proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] = 
@@ -795,7 +799,7 @@ proc parseMdBlock(content: string, slice: Slice[int], kind: MdNodeKind): MdNode 
     # list indicator
     var listId: SimplePattern
     
-    for i, id in [p"- ", p"+ ", p"* ", p "\\d+. "]:
+    for i, id in [p"- ", p"\+ ", p"* ", p "\\d+. "]:
       if startsWith(content, slice.a, id) != notfound:
         listId = id
         b.numbered = i == 3
@@ -884,6 +888,7 @@ when isMainModule:
   assert 3        == startsWith("4. hi",  0, p"\d+. ")
   assert 4        == startsWith("43. hi", 0, p"\d+. ")
   assert notfound == startsWith("",       0, p"\d+. ")
+  assert notfound == startsWith("**",     0, p"* ")
 
 #   const t = "wow how are you man??"
 #   var indexes = toDoublyLinkedList([0..<t.len])

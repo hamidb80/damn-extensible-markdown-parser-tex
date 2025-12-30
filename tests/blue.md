@@ -1,9 +1,16 @@
 # Concept
 
 # Def
-this is under\_line [[wikilink]] `i++` **I _don't_ know** ... **wow** _another_ Oh I love math $\sin x \gets 2$ totally 
+this is under\_line should be escaped
+
+the [[wikilink]]
 
 why ***not*** this?
+
+the `code++`  .
+
+bug **I _don't_ know** ... **wow** _another_ Oh I love math $\sin x \gets 2$ totally 
+
 
 -------
 
@@ -44,7 +51,6 @@ my list
 9. i i i
 10. j j
 11. k
-
 
 - $\simeq0$ no effect
 - $=1$ normal
