@@ -595,6 +595,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     mdsWikilink,
     mdsEmbed,
     mdsLink,
+    mdsBoldItalic,
     mdsBold,
     mdsItalic,
     mdsHighlight,
