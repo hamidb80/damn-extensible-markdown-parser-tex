@@ -25,6 +25,7 @@ type
     mdbTable
 
     # spans (inline elements)
+    mdsBoldItalic ## ***...***
     mdsBold ## **...**
     mdsItalic ## *...* _..._
     mdsHighlight ## ==...==
@@ -162,6 +163,12 @@ func toTex(n: MdNode, result: var string) =
     result.add "\\begin{verbatim}\n"
     result.add n.content
     result.add "\n\\end{verbatim}"
+
+  of mdsBoldItalic: 
+    let repl = MdNode(kind: mdsBold, 
+                     children: @[MdNode(kind: mdsItalic, 
+                                        children: n.children)])
+    toTex repl, result
 
   of mdsBold: 
     result.add "\\textbf{"
@@ -603,11 +610,16 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
       
     while true:
       case k 
+
+      of mdsBoldItalic: 
+        let v = matchPairInside("***", "***")
+        if issome v: acc.add (k, v.get)
+        else: break
+
       of mdsBold: 
         let v = matchPairInside("**", "**")
         if issome v: acc.add (k, v.get)
         else: break
-        
 
       of mdsItalic:
         #  TODO "*" .. "*"
