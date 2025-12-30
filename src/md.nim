@@ -255,12 +255,14 @@ proc p(pattern: string): SimplePattern =
         case pattern.at(i)
         of 's':  SimplePatternToken(kind: sptMeta, meta: spmWhitespace)
         of 'd':  SimplePatternToken(kind: sptMeta, meta: spmDigit)
+        of '\\': SimplePatternToken(kind: sptChar, ch: pattern[i])
         else:    raise newException(ValueError, fmt"invalid meta character '{pattern.at(i+1)}'")
       else:     
           SimplePatternToken(kind: sptChar, ch: pattern[i])
 
     let repeat = 
       case pattern.at(i+1)
+      of '^':  0 .. 0
       of '*':  0 .. int.high
       of '+':  1 .. int.high
       else  :  1 .. 1
@@ -278,7 +280,7 @@ proc matches(ch: char, pt: SimplePatternToken): bool =
   of sptMeta:
     case pt.meta
     of spmWhitespace: ch in Whitespace
-    of spmDigit    : ch in Digits
+    of spmDigit     : ch in Digits
 
 
 proc find(content: string, slice: Slice[int], sub: string): int = 
@@ -520,7 +522,7 @@ proc contains(n, m: Slice[int]): bool =
   m.a in n and 
   m.b in n
 
-proc substract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
+proc subtract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
   let subs = subtract(n.value, m)
   case subs.len
   of 0: ns.remove n
@@ -539,7 +541,8 @@ proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]
     for ni in indexes.nodes:
       let cindexes = ni.value # consequtive indexes
       for i in cindexes:
-        if pattern[j] == content[i]:
+        if (i == 0 or content[i-1] != '\\') and # considers escape
+           pattern[j] == content[i]: 
           inc j
           if j == pattern.len: 
             result = some i-j+1 .. i
@@ -551,7 +554,7 @@ proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]
 
   # no change the indexes
   if not isNil n:
-    substract indexes, n, result.get
+    subtract indexes, n, result.get
 
 proc scrabbleMatchDeepMulti(content: string, indexes: var DoublyLinkedList[Slice[int]], pattern: seq[string]): Option[seq[Slice[int]]] = 
   var acc: seq[Slice[int]]
@@ -589,8 +592,6 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     mdsComment,
     mdsText,
   ]:
-    # TODO support escape \ in patterns
-
     proc matchPairInside(l, r: string): Option[Slice[int]] = 
       let r = scrabbleMatchDeepMulti(content, indexes, @[l, r])
       if isSome r:
@@ -625,7 +626,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
           acc.add (k, area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
-              indexes.substract ni, area
+              indexes.subtract ni, area
         else:
           break
 
@@ -637,7 +638,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
           acc.add (k, area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
-              indexes.substract ni, area
+              indexes.subtract ni, area
         else:
           break
 
@@ -649,7 +650,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
           acc.add (k, area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
-              indexes.substract ni, area
+              indexes.subtract ni, area
         else:
           break
 
@@ -683,9 +684,17 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
 
 
       of mdsText:
-        for i in indexes: # all other non matched scrabbles
-          # TODO remove scape characters here
-          acc.add (k, i)
+        for area in indexes: # all other non matched scrabbles
+          var cur = area
+
+          # removes escape characters here (splits at escape)
+          for i in area:
+            if content[i] == '\\':
+              acc.add (k, cur.a ..< i )
+              cur = i+1 .. cur.b
+          
+          acc.add (k, cur)
+
         break
 
       else: 
@@ -852,10 +861,10 @@ when isMainModule:
   assert 3        == startsWith("```py\n wow\n```", 0, p"```")
   assert 4        == startsWith("\n```", 0, p "\n```")
   assert 5        == startsWith("-----", 0, p"---+")
-  assert 3        == startsWith("\n$$", 0, p "\n$$")
-  assert 3        == startsWith("4. hi", 0, p "\\d+. ")
-  assert 4        == startsWith("43. hi", 0, p "\\d+. ")
-  assert notfound == startsWith("", 0, p "\\d+. ")
+  assert 3        == startsWith("\n$$",  0, p "\n$$")
+  assert 3        == startsWith("4. hi",  0, p"\d+. ")
+  assert 4        == startsWith("43. hi", 0, p"\d+. ")
+  assert notfound == startsWith("",       0, p"\d+. ")
 
 #   const t = "wow how are you man??"
 #   var indexes = toDoublyLinkedList([0..<t.len])
