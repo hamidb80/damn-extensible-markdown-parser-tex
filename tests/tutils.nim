@@ -1,7 +1,7 @@
 import std/[
   unittest,
 ]
-import ../src/md
+import md
 
 suite "Utils":
   test "startsWith":
