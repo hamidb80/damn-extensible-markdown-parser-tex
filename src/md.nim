@@ -85,18 +85,71 @@ type
 
   SimplePattern = seq[SimplePatternNode]
 
-# --------------------------------------------
+# -------------------------------------------------
 
 const notfound = -1
-
-# --------------------------------------------
 
 const MdLeafNodes = {mdsText, 
                     mdsMath, mdsCode, 
                     mdsEmbed, mdWikiEmbed, mdsWikilink, 
                     mdbMath, mdbCode}
 
-func empty(a: seq): bool = a.len == 0
+# ----- General Utils ------------------------------
+
+# func empty(a: seq): bool = a.len == 0
+
+# func `+`(n,m: Slice[int]): Slice[int] = 
+#   (n.a + m.a) .. (n.b + m.b)
+
+func at(str: string, index: int): char = 
+  if index in str.low .. str.high: str[index]
+  else:                            '\0'
+
+func subtract(n, m: Slice[int]): seq[Slice[int]] = 
+  # case 1
+  # n-----------n
+  #    m----m
+  # o-o      o--o
+
+  # case 2
+  #    n-----n
+  # m----------m
+  #    nothing
+  
+  # case 3
+  # n-----n
+  #    m------m
+  # o-o
+
+  # case 4
+  #    n------n
+  # m------m
+  #         o-o
+
+  # case 5
+  # n------n
+  #          m------m
+  # o------o
+
+  # case 6
+  #          n------n
+  # m------m
+  #          o------o
+
+  if n.a < m.a: # start only
+    result.add n.a .. min(n.b, m.a-1)
+  
+  if n.b > m.b: # end only
+    result.add max(n.a, m.b+1) .. n.b
+
+func intersects(n, m: Slice[int]): bool =
+  subtract(n, m) != @[n]
+
+func contains(n, m: Slice[int]): bool =
+  m.a in n and 
+  m.b in n
+
+# ----- Convertors ---------------------------------
 
 func toXml(n: MdNode, result: var string) = 
   result.add "<"
@@ -145,6 +198,9 @@ func toTex(n: MdNode, result: var string) =
     for sub in n.children:
       toTex sub, result
   
+  # TODO auto link finder (convert normal text -> link) via \url
+  # mdsURL
+
   # TODO
   of mdsDir: 
     # \usepackage{bidi}
@@ -263,10 +319,7 @@ func toTex(n: MdNode, result: var string) =
 func toTex(n: MdNode): string = 
   toTex n, result
 
-
-func at(str: string, index: int): char = 
-  if index in str.low .. str.high: str[index]
-  else:                            '\0'
+# ----- Matching Utils -----------------------------
 
 proc p(pattern: string): SimplePattern = 
   var i = 0
@@ -298,6 +351,8 @@ proc p(pattern: string): SimplePattern =
     else:
       inc i 
 
+const listPatterns = [p"- ", p"\+ ", p"* ", p "\\d+. "]
+
 proc matches(ch: char, pt: SimplePatternToken): bool = 
   case pt.kind
   of sptChar: ch == pt.ch
@@ -305,8 +360,6 @@ proc matches(ch: char, pt: SimplePatternToken): bool =
     case pt.meta
     of spmWhitespace: ch in Whitespace
     of spmDigit     : ch in Digits
-
-const listPatterns = [p"- ", p"\+ ", p"* ", p "\\d+. "]
 
 proc find(content: string, slice: Slice[int], sub: string): int = 
   var i = slice.a
@@ -409,6 +462,7 @@ proc skipNotChar(content: string, slice: Slice[int], ch: char): int =
 proc skipAtNextLine(content: string, slice: Slice[int]): int = 
   skipNotChar(content, slice, '\n')
 
+# ----- Main Functionalities ---------------------
 
 proc detectBlockKind(content: string, cursor: int): MdNodeKind = 
   if   startsWith(content, cursor, p"```")   != notfound: mdbCode
@@ -501,50 +555,6 @@ proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, rig
 proc replace[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], repl: T) = 
   n.value = repl
 
-proc subtract(n, m: Slice[int]): seq[Slice[int]] = 
-  # case 1
-  # n-----------n
-  #    m----m
-  # o-o      o--o
-
-  # case 2
-  #    n-----n
-  # m----------m
-  #    nothing
-  
-  # case 3
-  # n-----n
-  #    m------m
-  # o-o
-
-  # case 4
-  #    n------n
-  # m------m
-  #         o-o
-
-  # case 5
-  # n------n
-  #          m------m
-  # o------o
-
-  # case 6
-  #          n------n
-  # m------m
-  #          o------o
-
-  if n.a < m.a: # start only
-    result.add n.a .. min(n.b, m.a-1)
-  
-  if n.b > m.b: # end only
-    result.add max(n.a, m.b+1) .. n.b
-
-proc intersects(n, m: Slice[int]): bool =
-  subtract(n, m) != @[n]
-
-proc contains(n, m: Slice[int]): bool =
-  m.a in n and 
-  m.b in n
-
 proc subtract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
   let subs = subtract(n.value, m)
   case subs.len
@@ -553,26 +563,22 @@ proc subtract(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[in
   of 2: replace(ns, n, subs[0], subs[1])
   else: raise newException(ValueError, "invalid subs: " & $subs.len)
 
-proc `+`(n,m: Slice[int]): Slice[int] = 
-  (n.a + m.a) .. (n.b + m.b)
-
 proc scrabbleMatchDeep(content: string, indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
   var j = 0
   var n: DoublyLinkedNode[Slice[int]]
 
-  block find:
+  block findPattern:
     for ni in indexes.nodes:
       let area = ni.value # consequtive indexes
       for i in area:
         let cond = (i == 0 or content[i-1] != '\\') and # considers escape
-           pattern[j] == content[i]
-        if (i == 0 or content[i-1] != '\\') and # considers escape
-           pattern[j] == content[i]: 
+                    pattern[j] == content[i]
+        if cond:
           inc j
           if j == pattern.len: 
             result = some i-j+1 .. i
             n = ni
-            break find
+            break findPattern
 
         else:
           reset j
@@ -606,7 +612,6 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
 
   for k in [
     # sorted by priority
-    mdsDir,
     mdsCode,
     mdsMath,
     mdWikiEmbed,
@@ -618,6 +623,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     mdsItalic,
     mdsHighlight,
     mdsComment,
+    # mdsDir,
     mdsText,
   ]:
     proc matchPairInside(l, r: string): Option[Slice[int]] = 
@@ -630,15 +636,13 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
     while true:
       case k
 
-      of mdsDir:
-        break # TODO
-
       of mdsBoldItalic: 
         let v = matchPairInside("***", "***")
         if issome v: acc.add (k, v.get)
         else: break
 
       of mdsBold: 
+        #  TODO "__" .. "__"
         let v = matchPairInside("**", "**")
         if issome v: acc.add (k, v.get)
         else: break
@@ -720,6 +724,8 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
 
 
       of mdsText:
+        # TODO mdsDir
+
         for area in indexes: # all other non matched scrabbles
           var cur = area
 
@@ -869,12 +875,14 @@ proc parseMarkdown(content: string): MdNode =
     let head = skipWhitespaces(content, cursor)
     let kind = detectBlockKind(content, head)
     let tail = afterBlock(content, head, kind)
-    if tail - head <= 0: break
+    if tail - head <= 0: break # maybe that's end of the document
     let b    = parseMdBlock(content, head .. tail-1, kind)
     result.children.add b
     cursor = tail
 
-proc preprocess(root: sink MdNode): MdNode = 
+proc attachNextCommentOfFigAsDesc(root: sink MdNode): MdNode = 
+  ## pipe (preprocessor)
+  
   case root.kind
   of mdWrap:
 
@@ -885,6 +893,7 @@ proc preprocess(root: sink MdNode): MdNode =
     while i < root.children.len:
       newChildren.add root.children[i]
 
+      # check if the first child of next element which is a par, is a comment
       if i < root.children.len - 1 and 
          root.children[i].kind   == mdWikiEmbed and 
          root.children[i+1].kind == mdbPar and
@@ -899,11 +908,8 @@ proc preprocess(root: sink MdNode): MdNode =
     discard
   
   root
-
  
 # -----------------------------
-
-# TODO auto link finder (convert normal text -> link)
 
 when isMainModule:
   # tests ---------------------------
@@ -918,7 +924,6 @@ when isMainModule:
   assert 4        == startsWith("43. hi", 0, p"\d+. ")
   assert notfound == startsWith("",       0, p"\d+. ")
   assert notfound == startsWith("**",     0, p"* ")
-
 #   const t = "wow how are you man??"
 #   var indexes = toDoublyLinkedList([0..<t.len])
 #   let res = scrabbleMatchDeep(t, indexes, "are")
@@ -934,7 +939,8 @@ when isMainModule:
       let 
         content = readFile path
         doc     = parseMarkdown content
-        newdoc  = preprocess doc
+        newdoc  = attachNextCommentOfFigAsDesc doc
       
       writeFile "./play.xml", toXml newdoc
       writeFile "./play.tex", toTex newdoc
+      # TODO to HTML
