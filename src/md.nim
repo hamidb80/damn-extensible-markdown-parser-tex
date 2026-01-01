@@ -146,13 +146,14 @@ func toTex(n: MdNode, result: var string) =
       toTex sub, result
   
   # TODO
-  # of mdsDir: 
+  of mdsDir: 
     # \usepackage{bidi}
     # \lr : ltr 
     # \rl : rtl
-    # result.add "\\texttt{"
-    # result.add n.content
-    # result.add '}'
+    result.add "\\lr{"
+    for sub in n.children:
+      toTex sub, result
+    result.add '}'
 
   of mdsCode: 
     result.add "\\texttt{"
