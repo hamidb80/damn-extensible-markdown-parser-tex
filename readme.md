@@ -1,9 +1,10 @@
-# Hackable Markdown Parser
+# Damn Extensible Markdown Parser
 
-from: https://github.com/miyuchina/mistletoe/issues/257
 > This would require a major API (and internals) rework though, 
 > while we would also need to think about backwards compatibility - 
-> so apparently not a trivial stuff.
+> so apparently not a trivial stuff. 
+> 
+> from: https://github.com/miyuchina/mistletoe/issues/257
 
 
 we're in 2025, age of AI, 
