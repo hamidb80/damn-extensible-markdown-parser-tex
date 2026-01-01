@@ -25,6 +25,7 @@ type
     mdbTable
 
     # spans (inline elements)
+    mdsDir ## direction of language of choice
     mdsBoldItalic ## ***...***
     mdsBold ## **...**
     mdsItalic ## *...* _..._
@@ -143,6 +144,15 @@ func toTex(n: MdNode, result: var string) =
   of mdbPar:
     for sub in n.children:
       toTex sub, result
+  
+  # TODO
+  # of mdsDir: 
+    # \usepackage{bidi}
+    # \lr : ltr 
+    # \rl : rtl
+    # result.add "\\texttt{"
+    # result.add n.content
+    # result.add '}'
 
   of mdsCode: 
     result.add "\\texttt{"
@@ -597,6 +607,7 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
 
   for k in [
     # sorted by priority
+    mdsDir,
     mdsCode,
     mdsMath,
     mdWikiEmbed,
@@ -618,7 +629,10 @@ proc parseMdSpans(content: string, slice: Slice[int]): seq[MdNode] =
         result = some span
       
     while true:
-      case k 
+      case k
+
+      of mdsDir:
+        break # TODO
 
       of mdsBoldItalic: 
         let v = matchPairInside("***", "***")
