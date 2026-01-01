@@ -89,10 +89,10 @@ type
 
 const notfound* = -1
 
-const MdLeafNodes = {mdsText, 
-                    mdsMath, mdsCode, 
-                    mdsEmbed, mdWikiEmbed, mdsWikilink, 
-                    mdbMath, mdbCode}
+const MdLeafNodes* = {mdsText, 
+                      mdsMath, mdsCode, 
+                      mdsEmbed, mdWikiEmbed, mdsWikilink, 
+                      mdbMath, mdbCode}
 
 # ----- General Utils ------------------------------
 
@@ -104,7 +104,7 @@ const MdLeafNodes = {mdsText,
 
 # func isEmpty(a: seq): bool = a.len == 0
 
-func at(str: string, index: int): char = 
+func at*(str: string, index: int): char = 
   if index in str.low .. str.high: str[index]
   else:                            '\0'
 
