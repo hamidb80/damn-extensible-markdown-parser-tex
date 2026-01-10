@@ -60,6 +60,7 @@ type
     kind:     MdNodeKind
     children: seq[MdNode]
     content:  string
+    slice:    Slice[int]
 
     # specific
     numbered: bool   # for list
@@ -217,10 +218,15 @@ func toTex*(n: MdNode, result: var string) =
     # \usepackage{bidi}
     # \lr : ltr 
     # \rl : rtl
-    result.add "\\lr{"
+
+    if n.dir == mddLtr:
+      result.add "\\lr{"
+  
     for sub in n.children:
       toTex sub, result
-    result.add '}'
+  
+    if n.dir == mddLtr:
+      result.add '}'
 
   of mdsCode: 
     result.add "\\texttt{"
@@ -631,8 +637,7 @@ proc onlyContent*(content: string, slice: Slice[int], kind: MdNodeKind): Slice[i
   else: slice
 
 proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] = 
-  echo "!! ", slice, ' ', content[slice]
-  var acc: seq[tuple[kind: MdNodeKind, slice: Slice[int]]]
+  var acc: seq[MdNode]
   var indexes = toDoublyLinkedList([slice])
 
   for k in [
@@ -659,29 +664,28 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         result = some span
       
     while true:
-      echo k
       case k
 
       of mdsBoldItalic: 
         let v = matchPairInside("***", "***")
-        if issome v: acc.add (k, v.get)
+        if issome v: acc.add MdNode(kind: k, slice: v.get)
         else: break
 
       of mdsBold: 
         #  TODO "__" .. "__"
         let v = matchPairInside("**", "**")
-        if issome v: acc.add (k, v.get)
+        if issome v: acc.add MdNode(kind: k, slice: v.get)
         else: break
 
       of mdsItalic:
         #  TODO "*" .. "*"
         let v = matchPairInside("_", "_")
-        if issome v: acc.add (k, v.get)
+        if issome v: acc.add MdNode(kind: k, slice: v.get)
         else: break
 
       of mdsHighlight:
         let v = matchPairInside("==", "==")
-        if issome v: acc.add (k, v.get)
+        if issome v: acc.add MdNode(kind: k, slice: v.get)
         else: break
 
       of mdsWikilink:
@@ -689,7 +693,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         if isSome r:
           let bounds = r.get
           let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add (k, area)
+          acc.add MdNode(kind: k, slice: area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
               indexes.subtract ni, area
@@ -701,7 +705,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         if isSome r:
           let bounds = r.get
           let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add (k, area)
+          acc.add MdNode(kind: k, slice: area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
               indexes.subtract ni, area
@@ -713,7 +717,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         if isSome r:
           let bounds = r.get
           let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add (k, area)
+          acc.add MdNode(kind: k, slice: area)
           for ni in indexes.nodes:
             if ni.value.intersects area:
               indexes.subtract ni, area
@@ -744,7 +748,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
             if issome match: match.get.b-1
             else: slice.b
           let span = (head.get.b + 1) .. tail
-          acc.add (k, span)
+          acc.add MdNode(kind: k, slice: span)
         else:
           break
 
@@ -837,7 +841,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
           put()
           
           for ph in phrases:
-            acc.add (mdsDir, ph.slice)
+            acc.add MdNode(kind: mdsDir, dir: ph.dir, slice: ph.slice)
 
           # --------------
 
@@ -861,11 +865,6 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
       of mdsText:
         # --- remove the escape characters
 
-        echo indexes
-        for area in indexes:
-          echo (content.low .. content.high, area)
-          echo ">> ", content[area]
-
         for area in indexes: # all other non matched scrabbles
           var cur = area
 
@@ -877,17 +876,17 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
             for i in cur:
               if content[i] == '\\':
                 if content[i+1] == '\\':
-                  acc.add (k, cur.a .. i )
+                  acc.add MdNode(kind: k, slice: cur.a .. i )
                   cur = i+2 .. cur.b
 
                 else:
-                  acc.add (k, cur.a ..< i )
+                  acc.add MdNode(kind: k, slice: cur.a ..< i )
                   cur = i+1 .. cur.b
 
                 again = true
                 break
           
-          acc.add (k, cur)
+          acc.add MdNode(kind: k, slice: cur)
 
         break
 
@@ -895,31 +894,27 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         break
 
   # aggregate
-  proc cmpFirst(a,b: (MdNodeKind, Slice[int])): int = 
-    cmp(a[1].a, b[1].a)
+  proc cmpFirst(a,b: MdNode): int = 
+    cmp(a.slice.a, b.slice.a)
 
   acc.sort cmpFirst
 
-  var root = MdNode(kind: mdWrap) # XXX define wrap
-  var stack: seq[tuple[node: MdNode, slice: Slice[int]]] = @[(root, slice)]
+  var root = MdNode(kind: mdWrap, slice: slice) # XXX define wrap
+  var stack: seq[MdNode] = @[root]
 
-  for c in acc:
+  for node in acc:
 
-    let node = 
-      case c.kind
-      of MdLeafNodes: 
-        MdNode(kind: c.kind, 
-               content: content[c.slice])
-      else:
-        MdNode(kind: c.kind)
+    # FIXME do not copy
+    if node.kind in MdLeafNodes:
+      node.content = content[node.slice]
 
     while true:
-      if c.slice in stack[^1].slice:
-        stack[^1].node.children.add node
+      if node.slice in stack[^1].slice:
+        stack[^1].children.add node
         
         case node.kind
         of MdLeafNodes: discard
-        else:           stack.add (node, c.slice)
+        else:           stack.add node
         break
 
       else:
