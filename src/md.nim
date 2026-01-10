@@ -221,7 +221,6 @@ func toTex*(n: MdNode, result: var string) =
 
     if n.dir == mddLtr:
       result.add "\\lr{"
-  
     for sub in n.children:
       toTex sub, result
   
