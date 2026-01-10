@@ -3,6 +3,7 @@
 import std/[
   strutils, strformat, 
   lists, sequtils,
+  options,
   algorithm,
   options,
 ]
@@ -50,10 +51,6 @@ type
     mddRtl
     mddLtr
 
-  Phrase* = object
-    dir: MdDir
-    slice: Slice[int]
-
   MdNode* = ref object
     # common
     kind:     MdNodeKind
@@ -67,6 +64,10 @@ type
     priority: int    # for header
     lang:     string # for code
     href:     string # for link
+    size:     Option[int]
+
+  MdSettings* = object
+    pageWidth*: int
 
 type
   SimplePatternMeta = enum
@@ -182,12 +183,12 @@ func toXml*(n: MdNode): string =
   toXml n, result
 
 
-func toTex*(n: MdNode, result: var string) = 
+func toTex*(n: MdNode, settings: MdSettings, result: var string) = 
   case n.kind
 
   of mdWrap:
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
       result.add "\n\n"
   
   of mdbHeader:
@@ -202,12 +203,12 @@ func toTex*(n: MdNode, result: var string) =
     result.add tag
     result.add '{'
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add '}'
 
   of mdbPar:
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
   
   # TODO auto link finder (convert normal text -> link) via \url
   # mdsURL
@@ -221,7 +222,7 @@ func toTex*(n: MdNode, result: var string) =
     if n.dir == mddLtr:
       result.add "\\lr{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
   
     if n.dir == mddLtr:
       result.add '}'
@@ -253,31 +254,31 @@ func toTex*(n: MdNode, result: var string) =
     # toTex repl, result
     result.add "\\verb{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "}"
 
   of mdsBold: 
     result.add "\\textbf{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "}"
 
   of mdsItalic: 
     result.add "\\textit{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "}"
 
   of mdsHighlight: 
     result.add "\\hl{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "}"
 
   of mdsComment:
     result.add "\\begin{small}"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "\\end{small}"
 
   of mdsText: 
@@ -289,21 +290,23 @@ func toTex*(n: MdNode, result: var string) =
   of mdsWikilink: 
     toTex MdNode(kind: mdsItalic, children: @[MdNode(kind: mdbPar, children: @[
       MdNode(kind: mdsText, content: "WIKILINK")
-    ])]), result
+    ])]), settings, result
 
   of mdWikiEmbed:
-    let size = 15
-
     result.add "\\begin{figure}[H]\n"
     result.add "\\centering\n"
-    result.add "\\includegraphics[width=" 
-    result.add $size
-    result.add "cm,keepaspectratio]{"
+    result.add "\\includegraphics["
+    if isSome n.size: 
+      let size = (n.size.get / settings.pageWidth) * (15)
+      result.add "width="
+      result.add $size
+      result.add "cm,"
+    result.add "keepaspectratio]{"
     result.add n.content
     result.add "}\n"
     result.add "\\caption{"
     for sub in n.children:
-      toTex sub, result
+      toTex sub, settings, result
     result.add "}\n"
     result.add "\\end{figure}"
 
@@ -323,7 +326,7 @@ func toTex*(n: MdNode, result: var string) =
     result.add "}"
     for sub in n.children:
       result.add "\n\\item "
-      toTex sub, result
+      toTex sub, settings, result
     result.add "\n\\end{"
     result.add tag
     result.add "}"
@@ -335,8 +338,8 @@ func toTex*(n: MdNode, result: var string) =
   of mdbTable, mdsLink:
     raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
 
-func toTex*(n: MdNode): string = 
-  toTex n, result
+func toTex*(n: MdNode, settings: MdSettings): string = 
+  toTex n, settings, result
 
 # ----- Slice Masking Utils ------------------------
 
@@ -932,8 +935,17 @@ proc parseMdBlock*(content: string, slice: Slice[int], kind: MdNodeKind): MdNode
            content: content[codeslice].strip)
 
   of mdWikiEmbed:
+    let 
+      text = split(content[contentslice], '|')
+      url  = text[0].strip
+      size = 
+        case text.len
+        of 1: none int
+        else: some text[1].strip.parseInt
+    
     MdNode(kind: kind,
-           content: content[contentslice])
+           size: size,
+           content: url)
 
   of mdbList:
     var b = MdNode(kind: mdbList)
@@ -1021,6 +1033,5 @@ proc attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
     discard
   
   root
-
 
 # TODO links
