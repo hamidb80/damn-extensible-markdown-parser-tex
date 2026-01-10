@@ -12,9 +12,9 @@ when isMainModule:
     let
       ipath = paramStr 1
       opath = paramStr 2
-      (_, _, oext) = splitFile opath
-      settings   = MdSettings(pagewidth: 1000)
-      md         = attachNextCommentOfFigAsDesc parseMarkdown readFile ipath
+      (_,_, oext) = splitFile opath
+      settings    = MdSettings(pagewidth: 1000)
+      md          = attachNextCommentOfFigAsDesc parseMarkdown readFile ipath
     
     case oext
     of ".tex":
@@ -22,4 +22,4 @@ when isMainModule:
     of ".xml":
       writeFile opath, toXml md
     else:
-      quit "only `.tex` and `.xml` supported"
+      quit "only `.tex` and `.xml` output file extension is supported"

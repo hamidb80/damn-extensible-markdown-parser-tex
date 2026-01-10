@@ -299,7 +299,7 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     if isSome n.size: 
       let size = (n.size.get / settings.pageWidth) * (15)
       result.add "width="
-      result.add $size
+      result.add formatFloat(size, precision=3)
       result.add "cm,"
     result.add "keepaspectratio]{"
     result.add n.content
@@ -647,16 +647,23 @@ proc detectLang(content: string, area: Slice[int]): MdDir =
 
 proc wordSlices(content: string, area: Slice[int]): seq[Slice[int]] =
   var changes: seq[int]
-  var last = true # was whitespace?
+  var l = true # last was whitespace?
 
   for i in area:
     let w = content[i] in Whitespace
-    if  w != last:
+    if  w != l:
       changes.add i
-    last = w
+    l = w
 
-  if not last:
-    changes.add area.b+1
+
+  if l:
+    changes.add changes[^1]+1
+  
+  var t = area.b
+  while t in area and content[t] in {'\n','\r'}:
+    dec t
+
+  changes.add t+1
 
   for i in countup(1, changes.high, 2):
     let head = changes[i-1]
@@ -684,10 +691,15 @@ proc separateLangs(content: string, area: Slice[int]): seq[MdNode] =
     langs     = ws.mapit(detectLang(content, it))
     langsMelt = meltSeq langs
 
+  # echo "----------"
+  # echo "'", content[area], "'"
+  # echo ws
+  # echo langs
+  # echo langsMelt
+
   for lm in langsMelt:
     let n = MdNode(kind: mdsDir, dir: langs[lm.a], slice: ws[lm.a].a .. ws[lm.b].b)
     result.add n
-
 
 proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] = 
   var acc: seq[MdNode]
@@ -813,10 +825,10 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         for area in indexes:
           let phrases = separateLangs(content, area)
           acc.add phrases
-          # echo " >> ", area, ' ', content[area]
 
           if phrases.len == 0:
             continue
+         
           # --------------
 
           var j = area.a
@@ -829,13 +841,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
             j = ph.slice.b+1
             newIndexes.add ph.slice
 
-          # let s = (phrases[^1].slice.b+1) .. slice.b
-          # if 1 <= len s: newIndexes.add s
-
         indexes = toDoublyLinkedList newIndexes
-        # for ind in indexes:
-        #   echo k, " && ", ind, ' ', content[ind]
-
         break
 
       of mdsText:
@@ -862,6 +868,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
                 again = true
                 break
           
+
           acc.add MdNode(kind: k, slice: cur)
 
         break
