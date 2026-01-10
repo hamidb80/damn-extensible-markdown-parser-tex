@@ -34,7 +34,7 @@ type
     mdsHighlight ## ==...==
     mdsCode ## `...`
     mdsMath ## $...$
-    mdsLink ## ![]()
+    mdsLink ## []()
     mdsEmbed ## ![]()
     mdsWikilink ## [[ ... ]]
     mdsComment ## // ...
@@ -46,9 +46,14 @@ type
     mdHLine # ---
   
   MdDir* = enum
-    unknown
-    rtl
-    ltr
+    mddSpace
+    mddUndecided
+    mddRtl
+    mddLtr
+
+  Phrase* = object
+    dir: MdDir
+    slice: Slice[int]
 
   MdNode* = ref object
     # common
@@ -95,6 +100,9 @@ const MdLeafNodes* = {mdsText,
                       mdbMath, mdbCode}
 
 # ----- General Utils ------------------------------
+
+func isUnicode(ch: char): bool = 
+  127 < ch.uint
 
 # func `+`(n,m: Slice[int]): Slice[int] = 
 #   (n.a + m.a) .. (n.b + m.b)
@@ -308,15 +316,19 @@ func toTex*(n: MdNode, result: var string) =
       else:          "itemize"
     result.add "\\begin{"
     result.add tag
-    result.add "}\n"
+    result.add "}"
     for sub in n.children:
-      result.add "\\item "
+      result.add "\n\\item "
       toTex sub, result
     result.add "\n\\end{"
     result.add tag
     result.add "}"
 
-  of mdbTable, mdsLink, mdbQuote:
+  of mdbQuote:
+    # TODO
+    discard
+
+  of mdbTable, mdsLink:
     raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
 
 func toTex*(n: MdNode): string = 
@@ -586,6 +598,12 @@ proc afterBlock*(content: string, cursor: int, kind: MdNodeKind): int =
     let e = skipBefore(content, i, p pat)
     1 + e + len pat
 
+  # of mdsEmbed:
+  #   let pat = "]"
+  #   let i = cursor + len "!["
+  #   let e = skipBefore(content, i, p pat)
+  #   1 + e + len pat
+
   of mdbCode: 
     let pat = "\n```"
     let i = cursor + len "```"
@@ -613,6 +631,7 @@ proc onlyContent*(content: string, slice: Slice[int], kind: MdNodeKind): Slice[i
   else: slice
 
 proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] = 
+  echo "!! ", slice, ' ', content[slice]
   var acc: seq[tuple[kind: MdNodeKind, slice: Slice[int]]]
   var indexes = toDoublyLinkedList([slice])
 
@@ -629,7 +648,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
     mdsItalic,
     mdsHighlight,
     mdsComment,
-    # mdsDir,
+    mdsDir,
     mdsText,
   ]:
     proc matchPairInside(l, r: string): Option[Slice[int]] = 
@@ -640,6 +659,7 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         result = some span
       
     while true:
+      echo k
       case k
 
       of mdsBoldItalic: 
@@ -728,9 +748,123 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
         else:
           break
 
+      of mdsDir:
+        # --- text direction
+        var 
+          newIndexes: seq[Slice[int]]
+        
+        for area in indexes:
+          var
+            phrases: seq[Phrase]
+            dirState = mddSpace
+            i = area.a # index
+            h = i      # head
+            t = i      # tail
+
+          template put {.dirty.} =
+            let sc = 
+              if 0 != phrases.len and dirState == phrases[^1].dir:
+                let ph = phrases.pop
+                ph.slice.a .. t
+              else:
+                h .. t
+            
+            phrases.add Phrase(slice: sc, dir: dirState)
+            
+
+          while i <= area.b:
+            var adjust = 1
+            let 
+              a = isAlphaAscii content[i]
+              u = isUnicode    content[i]
+              s = isSpaceAscii content[i]
+
+            case dirState
+            of mddSpace:
+              if a:
+                dirState = mddLtr
+
+              elif u:
+                dirState = mddRtl
+
+              elif s:
+                discard
+
+              else:
+                dirState = mddUndecided
+                
+              h = i
+              t = i
+
+            of mddUndecided:
+              if a:
+                dirState = mddLtr
+
+              elif u:
+                dirState = mddRtl
+
+              else:
+                discard
+
+              t = i
+
+            of mddRtl: 
+              if a:
+                put()
+                dirState = mddSpace
+                adjust = 0
+
+              elif s:
+                discard
+
+              else:
+                t = i
+
+            of mddLtr: 
+              if u:
+                put()
+                dirState = mddSpace
+                adjust = 0
+
+              elif s:
+                discard
+
+              else:
+                t = i
+
+            # echo (i, h..t, dirState, content[i])
+            inc i, adjust
+          put()
+          
+          for ph in phrases:
+            acc.add (mdsDir, ph.slice)
+
+          # --------------
+
+          var j = area.a
+
+          for ph in phrases:
+            let s = j ..< ph.slice.a
+            if 1 <= len s:
+              newIndexes.add s
+            
+            j = ph.slice.b+1
+            newIndexes.add ph.slice
+
+          let s = (phrases[^1].slice.b+1) .. t
+          if 1 <= len s: newIndexes.add s
+
+        indexes = toDoublyLinkedList newIndexes
+
+        break
 
       of mdsText:
-        # TODO mdsDir
+        # --- remove the escape characters
+
+        echo indexes
+        for area in indexes:
+          echo (content.low .. content.high, area)
+          echo ">> ", content[area]
 
         for area in indexes: # all other non matched scrabbles
           var cur = area
@@ -765,7 +899,6 @@ proc parseMdSpans*(content: string, slice: Slice[int]): seq[MdNode] =
     cmp(a[1].a, b[1].a)
 
   acc.sort cmpFirst
-  # echo acc
 
   var root = MdNode(kind: mdWrap) # XXX define wrap
   var stack: seq[tuple[node: MdNode, slice: Slice[int]]] = @[(root, slice)]
@@ -916,3 +1049,6 @@ proc attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
     discard
   
   root
+
+
+# TODO links

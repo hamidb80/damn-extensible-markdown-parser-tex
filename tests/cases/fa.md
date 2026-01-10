@@ -13,3 +13,6 @@
 10. **ستون Country**: نام کشور مورد نظر
 
 character \\ is good
+
+# گنج رنج
+این الگروریتم KNN یا همون K Nearest Neightbours بد است
