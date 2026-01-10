@@ -660,11 +660,14 @@ proc wordSlices(content: string, area: Slice[int]): seq[Slice[int]] =
     let tail = changes[i]-1
     result.add head..tail
 
-proc meltSeq[T](elements: seq[T]): seq[Slice[int]] = 
+proc meltSeq(elements: seq[MdDir]): seq[Slice[int]] = 
   var j = 0
 
   for i in 1 ..< elements.len:
-    if elements[j] != elements[i]:
+    if   elements[i] == mddUndecided:
+      discard
+
+    elif elements[j] != elements[i]:
       result.add j ..< i
       j = i
 
