@@ -373,7 +373,7 @@ func toTex*(n: MdNode, settings: MdSettings): string =
 
 # ----- Slice Masking Utils ------------------------
 
-proc replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, right: T) = 
+func replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, right: T) = 
   var 
     l = newDoublyLinkedNode(left)
     r = newDoublyLinkedNode(right)
@@ -389,10 +389,10 @@ proc replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, ri
   if isNil n.next:   list.tail = r
   else:            n.next.prev = r
 
-proc replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], repl: T) = 
+func replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], repl: T) = 
   n.value = repl
 
-proc subtract*(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
+func subtract*(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
   let subs = subtract(n.value, m)
   case subs.len
   of 0: ns.remove n
@@ -402,7 +402,7 @@ proc subtract*(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[i
 
 # ----- Matching Utils -----------------------------
 
-proc p*(pattern: string): SimplePattern = 
+func p*(pattern: string): SimplePattern = 
   var i = 0
   while i < pattern.len:
     
@@ -434,7 +434,7 @@ proc p*(pattern: string): SimplePattern =
 
 const listPatterns = [p"- ", p"\+ ", p"* ", p "\\d+. "]
 
-proc matches*(ch: char, pt: SimplePatternToken): bool = 
+func matches*(ch: char, pt: SimplePatternToken): bool = 
   case pt.kind
   of sptChar: ch == pt.ch
   of sptMeta:
@@ -442,7 +442,7 @@ proc matches*(ch: char, pt: SimplePatternToken): bool =
     of spmWhitespace: ch in Whitespace
     of spmDigit     : ch in Digits
 
-proc find*(content; slice; sub: string): int = 
+func find*(content; slice; sub: string): int = 
   var i = slice.a
   var j = 0 
   
@@ -458,7 +458,7 @@ proc find*(content; slice; sub: string): int =
 
   notfound
 
-proc skipWhitespaces*(content; cursor: int): int = # : SkipWhitespaceReport = 
+func skipWhitespaces*(content; cursor: int): int = # : SkipWhitespaceReport = 
   var i = cursor
   while i < content.len:
     if content[i] in Whitespace:
@@ -467,7 +467,7 @@ proc skipWhitespaces*(content; cursor: int): int = # : SkipWhitespaceReport =
       break
   i
 
-proc startsWith*(str: string, cursor: int, pattern: SimplePattern): int = 
+func startsWith*(str: string, cursor: int, pattern: SimplePattern): int = 
   if str.high < cursor: return notfound
 
   var 
@@ -499,7 +499,7 @@ proc startsWith*(str: string, cursor: int, pattern: SimplePattern): int =
   
   i
 
-proc skipBefore*(content; cursor: int, pattern: SimplePattern): int = 
+func skipBefore*(content; cursor: int, pattern: SimplePattern): int = 
   var i  = cursor
   
   while i < content.len:
@@ -508,7 +508,7 @@ proc skipBefore*(content; cursor: int, pattern: SimplePattern): int =
   
   raise newException(ValueError, "cannot match end of " & $pattern)
 
-proc stripSlice*(content; slice; chars: set[char]): Slice[int] = 
+func stripSlice*(content; slice; chars: set[char]): Slice[int] = 
   var i = slice.a
   var j = slice.b
 
@@ -517,28 +517,28 @@ proc stripSlice*(content; slice; chars: set[char]): Slice[int] =
   
   i .. j
 
-proc skipChars*(content; slice; chars: set[char]): int = 
+func skipChars*(content; slice; chars: set[char]): int = 
   var i = slice.a
   while i in slice:
     if content[i] notin chars: break
     inc i
   i # or at the end of file
 
-proc skipChar*(content; slice; ch: char): int = 
+func skipChar*(content; slice; ch: char): int = 
   skipChars(content, slice, {ch})
 
-proc skipNotChar*(content; slice; ch: char): int = 
+func skipNotChar*(content; slice; ch: char): int = 
   var i = slice.a
   while i in slice:
     if content[i] == ch: break
     inc i
   i # or at the end of file
 
-proc skipAtNextLine*(content; slice): int = 
+func skipAtNextLine*(content; slice): int = 
   skipNotChar(content, slice, '\n')
 
 
-proc scrabbleMatchDeep*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
+func scrabbleMatchDeep*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
   var j = 0
   var n: DoublyLinkedNode[Slice[int]]
 
@@ -562,7 +562,7 @@ proc scrabbleMatchDeep*(content; indexes: var DoublyLinkedList[Slice[int]], patt
   if not isNil n:
     subtract indexes, n, result.get
 
-proc scrabbleMatchDeepMulti*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: seq[string]): Option[seq[Slice[int]]] = 
+func scrabbleMatchDeepMulti*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: seq[string]): Option[seq[Slice[int]]] = 
   var acc: seq[Slice[int]]
 
   # TODO do not to manipulate indexes here
@@ -584,7 +584,7 @@ proc scrabbleMatchDeepMulti*(content; indexes: var DoublyLinkedList[Slice[int]],
 
 # ----- Main Functionalities ---------------------
 
-proc detectBlockKind*(content; cursor: int): MdNodeKind = 
+func detectBlockKind*(content; cursor: int): MdNodeKind = 
   if   startsWith(content, cursor, p"```")   != notfound: mdbCode
   elif startsWith(content, cursor, p"$$\s")  != notfound: mdbMath
   elif startsWith(content, cursor, p"> ")    != notfound: mdbQuote
@@ -595,7 +595,7 @@ proc detectBlockKind*(content; cursor: int): MdNodeKind =
   elif listPatterns.anyit(notfound != startsWith(content, cursor, it)): mdbList
   else: mdbPar
 
-proc skipAfterParagraphSep*(content; slice; kind: MdNodeKind): int = 
+func skipAfterParagraphSep*(content; slice; kind: MdNodeKind): int = 
   ## go until double \s+\n\s+\n
 
   var newlines = 0
@@ -614,7 +614,7 @@ proc skipAfterParagraphSep*(content; slice; kind: MdNodeKind): int =
   
   i
 
-proc afterBlock*(content; cursor: int, kind: MdNodeKind): int = 
+func afterBlock*(content; cursor: int, kind: MdNodeKind): int = 
   case kind
   of mdbHeader: skipAtNextLine(content, cursor .. content.high)
   of mdHLine:   skipAtNextLine(content, cursor .. content.high)
@@ -653,7 +653,7 @@ proc afterBlock*(content; cursor: int, kind: MdNodeKind): int =
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
-proc onlyContent*(content; slice; kind: MdNodeKind): Slice[int] = 
+func onlyContent*(content; slice; kind: MdNodeKind): Slice[int] = 
   case kind
   of mdbMath:      stripSlice(content, slice, {'$'} + Whitespace)
   of mdbCode:      stripSlice(content, slice, {'`'})
@@ -663,13 +663,13 @@ proc onlyContent*(content; slice; kind: MdNodeKind): Slice[int] =
   of mdWikiEmbed:  stripSlice(content, slice, {'!', '[', ']'} + Whitespace)
   else: slice
 
-proc detectLang(content; slice): MdDir =
+func detectLang(content; slice): MdDir =
   for i in slice:
     if isUnicode    content[i]: return mddRtl
     if isAlphaAscii content[i]: return mddLtr
   return mddUndecided
 
-proc wordSlices(content; slice): seq[Slice[int]] =
+func wordSlices(content; slice): seq[Slice[int]] =
   var changes: seq[int]
   var l = true # last was whitespace?
 
@@ -687,7 +687,7 @@ proc wordSlices(content; slice): seq[Slice[int]] =
     let tail = changes[i]-1
     result.add head..tail
 
-proc meltSeq(elements: seq[MdDir]): seq[Slice[int]] = 
+func meltSeq(elements: seq[MdDir]): seq[Slice[int]] = 
   var j = 0
 
   for i in 1 ..< elements.len:
@@ -702,7 +702,7 @@ proc meltSeq(elements: seq[MdDir]): seq[Slice[int]] =
   if 1 <= len s:
     result.add s
 
-proc separateLangs(content; slice): seq[MdNode] =
+func separateLangs(content; slice): seq[MdNode] =
   let 
     ws        = wordSlices(content, slice)
     langs     = ws.mapit(detectLang(content, it))
@@ -713,7 +713,7 @@ proc separateLangs(content; slice): seq[MdNode] =
                       dir:   langs[lm.a], 
                       slice: ws[lm.a].a .. ws[lm.b].b)
 
-proc parseMdSpans*(content; slice): seq[MdNode] = 
+func parseMdSpans*(content; slice): seq[MdNode] = 
   var acc: seq[MdNode]
   var indexes = toDoublyLinkedList([slice])
 
@@ -733,7 +733,7 @@ proc parseMdSpans*(content; slice): seq[MdNode] =
     mdsDir,
     mdsText,
   ]:
-    proc matchPairInside(l, r: string): Option[Slice[int]] = 
+    func matchPairInside(l, r: string): Option[Slice[int]] = 
       let r = scrabbleMatchDeepMulti(content, indexes, @[l, r])
       if isSome r:
         let bounds = r.get
@@ -900,7 +900,7 @@ proc parseMdSpans*(content; slice): seq[MdNode] =
 
 
   # aggregate
-  proc cmpFirst(a,b: MdNode): int = 
+  func cmpFirst(a,b: MdNode): int = 
     cmp(a.slice.a, b.slice.a)
 
   acc.sort cmpFirst
@@ -927,7 +927,7 @@ proc parseMdSpans*(content; slice): seq[MdNode] =
 
   root.children
 
-proc parseMdBlock*(content; slice; kind: MdNodeKind): MdNode = 
+func parseMdBlock*(content; slice; kind: MdNodeKind): MdNode = 
   let contentslice = onlyContent(content, slice, kind)
 
   case kind
@@ -1016,7 +1016,7 @@ proc parseMdBlock*(content; slice; kind: MdNodeKind): MdNode =
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
-proc parseMarkdown*(content: string): MdNode = 
+func parseMarkdown*(content: string): MdNode = 
   result = MdNode(kind: mdWrap)
 
   var cursor = 0
@@ -1031,7 +1031,7 @@ proc parseMarkdown*(content: string): MdNode =
 
 # ------ Pre-Processors ---------------------------
 
-proc attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode = 
+func attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode = 
   ## pipe (preprocessor)
   
   case root.kind
