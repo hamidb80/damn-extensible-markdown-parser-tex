@@ -109,17 +109,22 @@ template TODO: untyped =
 func isUnicode(ch: char): bool = 
   127 < ch.uint
 
+
+func empty(z: seq): bool = 
+  z.len == 0
+
+func filled(z: seq): bool = 
+  not empty z
+
+func at*(str: string, index: int): char = 
+  if index in str.low .. str.high: str[index]
+  else:                            '\0'
+
 # func `+`(n,m: Slice[int]): Slice[int] = 
 #   (n.a + m.a) .. (n.b + m.b)
 
 # func `-`(n,m: Slice[int]): Slice[int] = 
 #   (n.a - m.a) .. (n.b - m.b)
-
-# func isEmpty(a: seq): bool = a.len == 0
-
-func at*(str: string, index: int): char = 
-  if index in str.low .. str.high: str[index]
-  else:                            '\0'
 
 func subtract*(n, m: Slice[int]): seq[Slice[int]] = 
   # case 1
@@ -656,13 +661,6 @@ proc detectLang(content: string, area: Slice[int]): MdDir =
     if isAlphaAscii content[i]: return mddLtr
   return mddUndecided
 
-
-func empty(z: seq): bool = 
-  z.len == 0
-
-func filled(z: seq): bool = 
-  not empty z
-
 proc wordSlices(content: string, area: Slice[int]): seq[Slice[int]] =
   var changes: seq[int]
   var l = true # last was whitespace?
@@ -1057,5 +1055,4 @@ proc attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
   root
 
 # TODO escape _ in latex
-# TODO fix word
 # TODO auto link finder (convert normal text -> link) via \url
