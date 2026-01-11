@@ -113,20 +113,23 @@ template `<<`(smth): untyped {.dirty.} =
 
 # ----- General Utils ------------------------------
 
+# --- char
 func isUnicode(ch: char): bool = 
   127 < ch.uint
 
-
+# --- seq
 func empty(z: seq): bool = 
   z.len == 0
 
 func filled(z: seq): bool = 
   not empty z
 
+# --- string
 func at*(str: string, index: int): char = 
   if index in str.low .. str.high: str[index]
   else:                            '\0'
 
+# --- slice
 # func `+`(n,m: Slice[int]): Slice[int] = 
 #   (n.a + m.a) .. (n.b + m.b)
 
@@ -200,7 +203,7 @@ func toXml*(n: MdNode): string =
   toXml n, result
 
 
-# TODO escape _, \, ... in latex
+# TODO escape _, \, ... in latex {leaf nodes}
 func toTex*(n: MdNode, settings: MdSettings, result: var string) = 
   case n.kind
 
