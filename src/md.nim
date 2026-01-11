@@ -448,14 +448,14 @@ func matches*(ch; pt: SimplePatternToken): bool =
     of spmWhitespace: ch in Whitespace
     of spmDigit     : ch in Digits
 
-func find*(content; slice; sub: string): int = 
+func find*(content; slice; str): int = 
   var i = slice.a
   var j = 0 
   
   while i in slice:
-    if content[i] == sub[j]:
+    if content[i] == str[j]:
       inc j
-      if j == sub.len: return i-j+1
+      if j == str.len: return i-j+1
     else:
       dec i, j
       reset j
