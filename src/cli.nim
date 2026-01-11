@@ -6,13 +6,12 @@ when isMainModule:
   case paramCount()
   of 3:
     let
+      d = paramStr 1
       textdirection = 
-        block:
-          let d = paramStr(1)
-          case d
-          of "ltr": mddLtr
-          of "rtl": mddRtl
-          else    : raise newException(ValueError, fmt"invalid '{d}' direction, direction can only be `ltr` or `rtl`")
+        case d
+        of "ltr": mddLtr
+        of "rtl": mddRtl
+        else    : raise newException(ValueError, fmt"invalid '{d}' direction, direction can only be `ltr` or `rtl`")
       ipath = paramStr 2
       opath = paramStr 3
       (_,_, oext) = splitFile opath
