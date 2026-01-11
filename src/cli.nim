@@ -1,37 +1,65 @@
-import std/[os, strformat]
+import std/[os, strformat, strutils]
 import md
 
 
 when isMainModule:
   case paramCount()
-  of 3:
+  of 4:
     let
-      d = paramStr 1
+      dir   = paramStr 1
+      pw    = paramStr 2
+      ipath = paramStr 3
+      opath = paramStr 4
+      
+      (_,_, iext) = splitFile ipath
+      (_,_, oext) = splitFile opath
+      
+      pagewidth     = 
+        try:
+          parseint pw
+        except ValueError:
+          quit fmt"invalid page width '{pw}', see help"
       textdirection = 
-        case d
+        case dir
         of "ltr": mddLtr
         of "rtl": mddRtl
-        else    : raise newException(ValueError, fmt"invalid '{d}' direction, direction can only be `ltr` or `rtl`")
-      ipath = paramStr 2
-      opath = paramStr 3
-      (_,_, oext) = splitFile opath
-      settings    = MdSettings(pagewidth: 1000, langdir: textdirection)
-      md          = attachNextCommentOfFigAsDesc parseMarkdown readFile ipath
+        else    : quit fmt"invalid '{dir}' direction, see help"
     
-    case oext
-    of ".tex":
-      writeFile opath, toTex(md, settings)
-    of ".xml":
-      writeFile opath, toXml md
-    else:
-      quit "only `.tex` and `.xml` output file extensions are supported"
+      settings = MdSettings(
+                      pagewidth: pagewidth, 
+                      langdir:   textdirection)
+      content = 
+        case iext
+        of ".md":
+          try:
+            readFile ipath
+          except:
+            quit fmt"cannot read input file at '{ipath}'"
+            
+        else:
+          quit fmt"invalid input file extension '{iext}', see help"
+      md = attachNextCommentOfFigAsDesc parseMarkdown content
+      result =
+        case oext
+        of ".tex":
+          toTex(md, settings)
+        of ".xml":
+          toXml md
+        else:
+          quit fmt"invalid output file extension '{oext}', see help"
+
+    try:
+      writeFile opath, result
+    except:
+      quit fmt"cannot write output file at '{opath}'"
 
   else:
     quit """
       USAGE:
-         app DIR path/to/file.md path/to/file.EXT
+         app LANG_DIR PAGE_WIDTH path/to/file.md path/to/file.EXT
 
       WHERE:
-        EXT can be `tex` or `xml`
-        DIR can be `ltr` or `rtl`
+        LANG_DIR   `ltr` or `rtl`
+        PAGE_WIDTH integer number. according to this parameter, the width of images are set
+        EXT        `tex` or `xml`
     """
