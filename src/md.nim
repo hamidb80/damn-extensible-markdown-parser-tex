@@ -149,9 +149,9 @@ func at(content; slice; mask; cursor): char =
 
 
 proc findNotEscapedAfter(content; slice; mask; pattern: string): int = 
-  for i in slice.a .. slice.b + 1:
+  for i in slice:
     let j = i-1
-    if j in slice and content.at(j) != '\\':
+    if content.at(j) != '\\':
       var matched = true
       for k in pattern.indices:
         if at(content, slice, mask, i+k) != pattern[k]:
@@ -231,11 +231,13 @@ proc bake(content; slice; mask; spanTokens: seq[MdSpan]): seq[tuple[span: MdSpan
         span = qr.get.pn
         tks = span.tokens
         i = qr.get.cursor
-        j = findNotEscapedAfter(
-          content, 
-          i + tks[0].len .. slice.b, 
-          mask, 
-          tks[^1])
+        subslice = i + tks[0].len .. slice.b
+        tail = tks[^1]
+        j = 
+          if tail == "": # end of line
+            subslice.b+1
+          else:
+            findNotEscapedAfter(content, subslice, mask, tail)
 
       if j == notfound:
         raise newException(ValueError, fmt"cannot match against {tks}")
@@ -864,7 +866,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       ],
 
       @[
-        mds(@["// ", "\0"], 0, mdsComment), # means EOL i.e. end of line
+        mds(@["// ", ""], 0, mdsComment), # means EOL i.e. end of line
       ],
     ]:
       let matches = bake(content, ls, mask, p)
@@ -1103,7 +1105,7 @@ func attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
       if i < root.children.len - 1 and 
          root.children[i].kind   == mdWikiEmbed and 
          root.children[i+1].kind == mdbPar and
-         root.children[i+1].children[0].kind == mdsComment:
+         root.children[i+1].children[0].children[0].kind == mdsComment:
            root.children[i].children.add root.children[i+1].children[0].children
            inc i
       inc i
