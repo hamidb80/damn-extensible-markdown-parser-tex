@@ -1,6 +1,5 @@
 import std/[os, strformat, strutils]
-# import md
-import lab
+import md
 
 
 when isMainModule:

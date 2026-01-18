@@ -1,10 +1,13 @@
 # ----- Imports  ---------------------------------
 
 import std/[
-  strutils, strformat, 
-  lists, sequtils,
-  algorithm,
-  options,
+  strformat,
+  strutils,
+  sequtils, 
+  lists, 
+  algorithm, 
+  tables, 
+  options
 ]
 
 # ----- Type Defs  -------------------------------
@@ -19,7 +22,8 @@ type
 
     # blocks
     mdbHeader ## ##+ ...
-    mdbPar 
+    mdbPar  # paragraph
+    mdsLine ## part of paragraph
     mdbCode ## ``` 
     mdbMath ## $$
     mdbQuote ## > 
@@ -35,6 +39,8 @@ type
     mdsCode ## `...`
     mdsMath ## $...$
     mdsLink ## []()
+    mdsParen ## []()
+    mdsBracket ## []()
     mdsEmbed ## ![]()
     mdsWikilink ## [[ ... ]]
     mdsComment ## // ...
@@ -91,6 +97,17 @@ type
 
   SimplePattern = seq[SimplePatternNode]
 
+type 
+  MdSpan = ref object
+    tokens: seq[string]
+    maskInside: bool
+    kind: MdNodeKind
+
+  PatternNode = ref object
+    lookup: Table[char, PatternNode]
+    span: MdSpan
+
+
 # ----- Constants --------------------------------
 
 const notfound* = -1
@@ -109,6 +126,138 @@ using
   ch     : char
   chars  : set[char]
   cursor : int
+  mask   : var seq[bool]
+
+
+func mds(tks: seq[string], mi: int, k: MdNodeKind): MdSpan =
+  MdSpan(tokens: tks, maskInside: mi == 1, kind: k)
+  
+
+func indices(smth: string or seq): Slice[int] = 
+  0 ..< smth.len
+
+func `[]`[T](s: Slice[T]; cursor: T): T = 
+  s.a + cursor
+
+func at(content; cursor): char = 
+  if cursor in content.indices: content[cursor]
+  else: '\0'  
+
+func at(content; slice; mask; cursor): char = 
+  if cursor in slice and not mask[cursor]: content[cursor]
+  else: '\0'  
+
+
+proc findNotEscapedAfter(content; slice; mask; pattern: string): int = 
+  for i in slice.a .. slice.b + 1:
+    let j = i-1
+    if j in slice and content.at(j) != '\\':
+      var matched = true
+      for k in pattern.indices:
+        if at(content, slice, mask, i+k) != pattern[k]:
+          matched = false
+          break
+      
+      if matched:
+        return min(i + pattern.len, slice.b + 1)
+
+  notfound
+
+
+proc select[T](s: seq[T], indices: seq[int]): seq[T] = 
+  for i in indices:
+    result.add s[i]
+
+proc makePatternTree(spanTokens: seq[MdSpan], h = 0): PatternNode = 
+  new result
+
+  if spanTokens.len == 1 and spanTokens[0].tokens[0].len == h:
+    result.span = spanTokens[0]
+
+  else:
+    var acc: Table[char, seq[int]]
+
+    for i, p in spanTokens:
+      let t = p.tokens[0]
+      if h < t.len:
+        let c = t[h]
+        if c notin acc:
+          acc[c] = @[]
+        acc[c].add i
+
+    for c, s in acc:
+      result.lookup[c] = makePatternTree(select(spanTokens, s), h+1)
+
+proc match(content; slice; mask; patternTree: PatternNode): MdSpan = 
+  var i = slice.a
+  var k = 0
+  var pt = patternTree
+
+  while i+k in slice:
+    let j = i+k
+    let ch = at(content,slice, mask, j)
+
+    if ch in pt.lookup:
+      pt = pt.lookup[ch]
+      inc k
+    
+    elif not isNil pt.span:
+      return pt.span
+
+    else:
+      return nil
+
+func `[]=`(s: var seq[bool], slice: Slice[int], b: bool) = 
+  for i in slice:
+    s[i] = b
+  
+
+proc findFirst(content; slice; mask; patternTree: PatternNode): Option[tuple[cursor: int, pn: MdSpan]] = 
+  for i in slice:
+    let j = i-1
+    if content.at(j) != '\\':
+      let m = match(content, i .. slice.b, mask, patternTree)
+      if not isnil m:
+        return some (i, m)
+
+proc bake(content; slice; mask; spanTokens: seq[MdSpan]): seq[tuple[span: MdSpan, borders: seq[Slice[int]]]] = 
+  let pt = makePatternTree(spanTokens)
+
+  while true:
+    let qr = findFirst(content, slice, mask, pt)
+
+    if issome qr:
+      let 
+        span = qr.get.pn
+        tks = span.tokens
+        i = qr.get.cursor
+        j = findNotEscapedAfter(
+          content, 
+          i + tks[0].len .. slice.b, 
+          mask, 
+          tks[^1])
+
+      if j == notfound:
+        raise newException(ValueError, fmt"cannot match against {tks}")
+      else:
+        let 
+          b1 = i ..< i+tks[0].len
+          b2 = j - tks[^1].len .. j-1
+          inside = b1.b+1 .. b2.a-1
+          borders = @[b1, b2]
+        
+        # echo (content[inside], content[b1], content[b2])
+        result.add (span, borders)
+
+        # --- mask out
+        for b in borders:
+          mask[b] = true
+
+        if span.maskInside:
+          mask[inside] = true
+
+    else:
+      break
 
 # template TODO: untyped =
 #   raise newException(ValueError, "TODO")
@@ -129,57 +278,45 @@ func empty(z: seq or string): bool =
 func filled(z: seq or string): bool = 
   not empty z
 
-# --- string
-func at*(str: string, index: int): char = 
-  if index in str.low .. str.high: str[index]
-  else:                            '\0'
+# func subtract*(n, m: Slice[int]): seq[Slice[int]] = 
+#   # case 1
+#   # n-----------n
+#   #    m----m
+#   # o-o      o--o
 
-# --- slice
-# func `+`(n,m: Slice[int]): Slice[int] = 
-#   (n.a + m.a) .. (n.b + m.b)
-
-# func `-`(n,m: Slice[int]): Slice[int] = 
-#   (n.a - m.a) .. (n.b - m.b)
-
-func subtract*(n, m: Slice[int]): seq[Slice[int]] = 
-  # case 1
-  # n-----------n
-  #    m----m
-  # o-o      o--o
-
-  # case 2
-  #    n-----n
-  # m----------m
-  #    nothing
+#   # case 2
+#   #    n-----n
+#   # m----------m
+#   #    nothing
   
-  # case 3
-  # n-----n
-  #    m------m
-  # o-o
+#   # case 3
+#   # n-----n
+#   #    m------m
+#   # o-o
 
-  # case 4
-  #    n------n
-  # m------m
-  #         o-o
+#   # case 4
+#   #    n------n
+#   # m------m
+#   #         o-o
 
-  # case 5
-  # n------n
-  #          m------m
-  # o------o
+#   # case 5
+#   # n------n
+#   #          m------m
+#   # o------o
 
-  # case 6
-  #          n------n
-  # m------m
-  #          o------o
+#   # case 6
+#   #          n------n
+#   # m------m
+#   #          o------o
 
-  if n.a < m.a: # start only
-    result.add n.a .. min(n.b, m.a-1)
+#   if n.a < m.a: # start only
+#     result.add n.a .. min(n.b, m.a-1)
   
-  if n.b > m.b: # end only
-    result.add max(n.a, m.b+1) .. n.b
+#   if n.b > m.b: # end only
+#     result.add max(n.a, m.b+1) .. n.b
 
-func intersects*(n, m: Slice[int]): bool =
-  subtract(n, m) != @[n]
+# func intersects*(n, m: Slice[int]): bool =
+#   subtract(n, m) != @[n]
 
 func contains*(n, m: Slice[int]): bool =
   m.a in n and 
@@ -239,6 +376,11 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << '}'
 
   of mdbPar:
+    for i, sub in n.children:
+      if i != 0: << '\n' # the children of paragraph are lines
+      toTex sub, settings, result
+
+  of mdsLine:
     for i, sub in n.children:
       if i != 0: << ' '
       toTex sub, settings, result
@@ -384,40 +526,25 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
         toTex sub, settings, result
       << "}"
 
+  of mdsParen:
+    << "("
+    for i, sub in n.children:
+      if i != 0: << ' '
+      toTex sub, settings, result
+    << ")"
+
+  of mdsBracket:
+    << "["
+    for i, sub in n.children:
+      if i != 0: << ' '
+      toTex sub, settings, result
+    << "]"
+
   of mdbQuote, mdbTable, mdsEmbed:
     raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
 
 func toTex*(n: MdNode, settings: MdSettings): string = 
   toTex n, settings, result
-
-# ----- Slice Masking Utils ------------------------
-
-func replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], left, right: T) = 
-  var 
-    l = newDoublyLinkedNode(left)
-    r = newDoublyLinkedNode(right)
-
-  l.prev = n.prev
-  r.next = n.next
-  l.next = r
-  r.prev = l
-
-  if isNil n.prev:   list.head = l
-  else:            n.prev.next = l
-
-  if isNil n.next:   list.tail = r
-  else:            n.next.prev = r
-
-func replace*[T](list: var DoublyLinkedList[T], n: DoublyLinkedNode[T], repl: T) = 
-  n.value = repl
-
-func subtract*(ns: var DoublyLinkedList[Slice[int]], n: DoublyLinkedNode[Slice[int]], m: Slice[int]) = 
-  let subs = subtract(n.value, m)
-  case subs.len
-  of 0: ns.remove n
-  of 1: replace(ns, n, subs[0])
-  of 2: replace(ns, n, subs[0], subs[1])
-  else: raise newException(ValueError, "invalid subs: " & $subs.len)
 
 # ----- Matching Utils -----------------------------
 
@@ -558,51 +685,6 @@ func skipNotChar*(content; slice; ch): int =
 func skipAtNextLine*(content; slice): int = 
   skipNotChar(content, slice, '\n')
 
-
-func scrabbleMatchDeep*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: string): Option[Slice[int]] =
-  var j = 0
-  var n: DoublyLinkedNode[Slice[int]]
-
-  block findPattern:
-    for ni in indexes.nodes:
-      let area = ni.value # consequtive indexes
-      for i in area:
-        let cond = (i == 0 or content[i-1] != '\\') and # considers escape
-                    pattern[j] == content[i]
-        if cond:
-          inc j
-          if j == pattern.len: 
-            result = some i-j+1 .. i
-            n = ni
-            break findPattern
-
-        else:
-          reset j
-
-  # no change the indexes
-  if not isNil n:
-    subtract indexes, n, result.get
-
-func scrabbleMatchDeepMulti*(content; indexes: var DoublyLinkedList[Slice[int]], pattern: seq[string]): Option[seq[Slice[int]]] = 
-  var acc: seq[Slice[int]]
-
-  # TODO do not to manipulate indexes here
-  for p in pattern:
-    let match = scrabbleMatchDeep(content, indexes, p)
-    if issome match:
-      acc.add match.get
-    else:
-      break
-
-  if acc.len == pattern.len:
-    return some acc
-
-  elif acc.len == pattern.len - 1:
-    raise newException(ValueError, "cannot match")
-  
-  else:
-    discard
-
 # ----- Main Functionalities ---------------------
 
 func detectBlockKind*(content; cursor): MdNodeKind = 
@@ -732,189 +814,143 @@ func separateLangs*(content; slice): seq[MdNode] =
                       dir:   langs[lm.a], 
                       slice: ws[lm.a].a .. ws[lm.b].b)
 
-func parseMdSpans*(content; slice): seq[MdNode] = 
+func freeSlices(mask; slice;): seq[Slice[int]] = 
+  var pin  = notfound
+
+  for i in slice.a .. slice.b+1:
+    if i notin slice or mask[i]:
+      if pin == notfound: discard
+      else:
+        result.add pin .. i-1
+        pin = notfound
+
+    elif pin == notfound:
+      pin = i
+
+proc linesSlice(content; slice;): seq[Slice[int]] = 
+  # for each line
+  var i = slice.a
+  while i < slice.b:
+    let s = skipAtNextLine(content, i .. slice.b)
+    result.add i .. s-1 
+    i = s+1
+
+
+proc parseParMdSpans*(content; slice; mask): seq[MdNode] = 
   var acc: seq[MdNode]
-  var indexes = toDoublyLinkedList([slice])
 
-  for k in [
-    # sorted by priority
-    mdsWikilink,
-    mdsEmbed,
-    mdsLink, # XXX compound of [] + ()
-    mdsCode,
-    mdsMath,
-    mdWikiEmbed,
-    mdsBoldItalic,
-    mdsBold,
-    mdsItalic,
-    mdsHighlight,
-    mdsComment,
-    mdsDir,
-    mdsText,
-  ]:
-    func matchPairInside(l, r: string): Option[Slice[int]] = 
-      let r = scrabbleMatchDeepMulti(content, indexes, @[l, r])
-      if isSome r:
-        let bounds = r.get
-        let span = bounds[0].b+1 .. bounds[1].a-1
-        result = some span
+  for ls in linesSlice(content, slice):
+    acc.add MdNode(kind: mdsLine, slice: ls)
 
-    while true:
-      case k
+    for p in [
+      @[
+        mds(@["`"], 1, mdsCode), 
+        mds(@["$"], 1, mdsMath),
+        mds(@[ "[[", "]]"], 1, mdsWikilink),
+      ],
 
-      of mdsBoldItalic: 
-        let v = matchPairInside("***", "***")
-        if issome v: acc.add MdNode(kind: k, slice: v.get)
-        else: break
+      @[
+        mds(@["(", ")"],0,mdsParen),
+        mds(@["[", "]"],0,mdsBracket),
+      ],
 
-      of mdsBold: 
-        #  TODO "__" .. "__"
-        let v = matchPairInside("**", "**")
-        if issome v: acc.add MdNode(kind: k, slice: v.get)
-        else: break
+      @[
+        mds(@["**"],0,mdsBold), 
+        mds(@["=="],0,mdsHighlight),
+      ],
 
-      of mdsItalic:
-        #  TODO "*" .. "*"
-        let v = matchPairInside("_", "_")
-        if issome v: acc.add MdNode(kind: k, slice: v.get)
-        else: break
+      @[
+        mds(@["_"],0, mdsItalic),
+      ],
 
-      of mdsHighlight:
-        # TODO add 🟠 🟢 🟣
-        let v = matchPairInside("==", "==")
-        if issome v: acc.add MdNode(kind: k, slice: v.get)
-        else: break
+      @[
+        mds(@["// ", "\0"], 0, mdsComment), # means EOL i.e. end of line
+      ],
+    ]:
+      let matches = bake(content, ls, mask, p)
+      var i = 0
+      while i < matches.len:
+        var k = matches[i].span.kind
+        var add = true
 
-      of mdsWikilink:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["[[", "]]"])
-        if isSome r:
-          let bounds = r.get
-          let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add MdNode(kind: k, slice: area)
-          for ni in indexes.nodes:
-            if ni.value.intersects area:
-              indexes.subtract ni, area
+        case k
+        # of mdsWikilink:
+        #   if at(content, slice, mask, matches[i].borders[0].a-1) == '!': 
+        #     k = mdWikiEmbed
+
+        # TODO add embed
+
+        of mdsBracket:
+          let j = i+1
+          if j in matches.indices and 
+            matches[j].span.kind == mdsParen and 
+            matches[i].borders[^1].b+1 == matches[j].borders[0].a
+          :
+            let linkSlice = matches[j].borders[0].a+1 .. matches[j].borders[^1].b-1
+            let inside    = matches[i].borders[0].a+1 .. matches[j].borders[^1].b-1
+            acc.add MdNode(
+              kind: mdsLink,
+              slice: inside,
+              content: content[linkSlice],
+              )
+
+            mask[linkSlice] = true # mask inside
+            add = false
+            inc i
+
         else:
-          break
+          discard
 
-      of mdsCode:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["`", "`"])
-        if isSome r:
-          let bounds = r.get
-          let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add MdNode(kind: k, slice: area)
-          for ni in indexes.nodes:
-            if ni.value.intersects area:
-              indexes.subtract ni, area
-        else:
-          break
-
-      of mdsMath:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["$", "$"])
-        if isSome r:
-          let bounds = r.get
-          let area = bounds[0].b+1 .. bounds[1].a-1
-          acc.add MdNode(kind: k, slice: area)
-          for ni in indexes.nodes:
-            if ni.value.intersects area:
-              indexes.subtract ni, area
-        else:
-          break
-
-      of mdsEmbed:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["![", "](", ")"])
-        if isSome r:
-          let bounds = r.get
-          let area1  = bounds[0].b+1 .. bounds[1].a-1
-          let area2  = bounds[1].b+1 .. bounds[2].a-1
-          let link   = content[area2].strip 
-
-          acc.add MdNode(kind: k, content: link, slice: area1)
-
-          for ni in indexes.nodes:
-            for a in [bounds[0], bounds[1], bounds[2], area2]:
-              if ni.value.intersects a:
-                indexes.subtract ni, a
-        else:
-          break
-
-      of mdsLink:
-        let r = scrabbleMatchDeepMulti(content, indexes, @["[", "](", ")"])
-        if isSome r:
-          let bounds = r.get
-          let area1  = bounds[0].b+1 .. bounds[1].a-1
-          let area2  = bounds[1].b+1 .. bounds[2].a-1
-          let link   = content[area2].strip 
-
-          acc.add MdNode(kind: k, content: link, slice: area1)
-
-          for ni in indexes.nodes:
-            for a in [bounds[0], bounds[1], bounds[2], area2]:
-              if ni.value.intersects a:
-                indexes.subtract ni, a
-        else:
-          break
-
-      of mdsComment:
-        let head = scrabbleMatchDeep(content, indexes, "// ")
-        if issome head:
-          let match = scrabbleMatchDeep(content, indexes, "\n")
-          let tail = 
-            if issome match: match.get.b-1
-            else: slice.b
-          let span = (head.get.b + 1) .. tail
-          acc.add MdNode(kind: k, slice: span)
-        else:
-          break
-
-      of mdsDir:
-        # --- text direction
-        var 
-          newIndexes: seq[Slice[int]]
+        if add:
+          acc.add MdNode(kind: k, 
+                        slice: matches[i].borders[0].b+1 .. matches[i].borders[^1].a-1)
         
-        for area in indexes:
-          let     phrases      = separateLangs(content, area)
-          if      phrases.len == 0: continue
-          acc.add phrases
-         
-          # echo phrases.mapit content[it.slice]
+        inc i
 
-          for ph in phrases:
-            newIndexes.add ph.slice
+  var 
+    indexes: DoublyLinkedList[Slice[int]]
+    
+  # dir and text ...
+  block dir_detect:
+    # --- text direction
+    var 
+      newIndexes: seq[Slice[int]]
+    
+    for area in freeSlices(mask, slice):
+      let     phrases      = separateLangs(content, area)
+      if      phrases.len == 0: continue
+      acc.add phrases
+      
+      for ph in phrases:
+        newIndexes.add ph.slice
 
-        indexes = toDoublyLinkedList newIndexes
-        break
+    indexes = toDoublyLinkedList newIndexes
 
-      of mdsText:
-        # --- remove the escape characters
+  block text_sep:
+    # --- remove the escape characters
 
-        for area in indexes: # all other non matched scrabbles
-          var cur = area
+    for area in indexes: # all other non matched scrabbles
+      var cur = area
 
-          # removes escape characters here (splits at escape)
-          # support \\ (escaping the escape)
-          var again = true
-          while again:
-            again = false
-            for i in cur:
-              if content[i] == '\\':
-                if content.at(i+1) == '\\':
-                  acc.add MdNode(kind: k, slice: cur.a .. i)
-                  cur = i+2 .. cur.b
+      # removes escape characters here (splits at escape)
+      # support \\ (escaping the escape)
+      var again = true
+      while again:
+        again = false
+        for i in cur:
+          if content[i] == '\\':
+            if content.at(i+1) == '\\':
+              acc.add MdNode(kind: mdsText, slice: cur.a .. i)
+              cur = i+2 .. cur.b
 
-                else:
-                  acc.add MdNode(kind: k, slice: cur.a ..< i)
-                  cur = i+1 .. cur.b
+            else:
+              acc.add MdNode(kind: mdsText, slice: cur.a ..< i)
+              cur = i+1 .. cur.b
 
-                again = true
-                break
-          
-          acc.add MdNode(kind: k, slice: cur)
-
-        break
-
-      else: 
-        break
+            again = true
+            break
+      
+      acc.add MdNode(kind: mdsText, slice: cur)
 
 
   # aggregate
@@ -945,7 +981,7 @@ func parseMdSpans*(content; slice): seq[MdNode] =
 
   root.children
 
-func parseMdBlock*(content; slice; kind: MdNodeKind): MdNode = 
+proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode = 
   let contentslice = onlyContent(content, slice, kind)
 
   case kind
@@ -957,15 +993,15 @@ func parseMdBlock*(content; slice; kind: MdNodeKind): MdNode =
   of mdbHeader: 
     MdNode(kind: kind,
            priority: skipChar(content, slice, '#') - slice.a,
-           children: parseMdSpans(content, contentslice))
+           children: parseParMdSpans(content, contentslice, mask))
   
   of mdbPar: 
     MdNode(kind: kind,
-           children: parseMdSpans(content, contentslice))
+           children: parseParMdSpans(content, contentslice, mask))
 
   of mdbQuote:
     MdNode(kind: kind,
-           children: parseMdSpans(content, contentslice))
+           children: parseParMdSpans(content, contentslice, mask))
   
 
   of mdbMath: 
@@ -1026,7 +1062,7 @@ func parseMdBlock*(content; slice; kind: MdNodeKind): MdNode =
 
     for s in acc:
       b.children.add MdNode(kind: mdbPar,
-                            children: parseMdSpans(content, s))
+                            children: parseParMdSpans(content, s, mask))
 
     b
 
@@ -1034,8 +1070,9 @@ func parseMdBlock*(content; slice; kind: MdNodeKind): MdNode =
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
-func parseMarkdown*(content): MdNode = 
+proc parseMarkdown*(content): MdNode = 
   result = MdNode(kind: mdWrap)
+  var mask = newSeqWith(content.len, false)
 
   var cursor = 0
   while cursor < content.len:
@@ -1043,7 +1080,7 @@ func parseMarkdown*(content): MdNode =
     let kind = detectBlockKind(content, head)
     let tail = afterBlock(content, head, kind)
     if tail - head <= 0: break # maybe that's end of the document
-    let b    = parseMdBlock(content, head .. tail-1, kind)
+    let b    = parseMdBlock(content, head .. tail-1, mask, kind)
     result.children.add b
     cursor = tail
 
@@ -1078,10 +1115,6 @@ func attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
   
   root
 
-
-# XXX add mdline which mdbPar must have
-
 # TODO auto link finder (convert normal text -> link) via \url
-# TODO simpler span parser (currently it does not capture ** _hello_ world**)
 # TODO add table parser
 # TODO add footnote
