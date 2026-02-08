@@ -849,7 +849,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       @[
         mds(@["`"], 1, mdsCode), 
         mds(@["$"], 1, mdsMath),
-        mds(@[ "[[", "]]"], 1, mdsWikilink),
+        mds(@["[[", "]]"], 1, mdsWikilink),
       ],
 
       @[
