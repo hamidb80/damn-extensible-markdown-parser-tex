@@ -349,7 +349,7 @@ func toXml*(n: MdNode): string =
 
 func writeEscapedTex(content; result: var string) = 
   for ch in content:
-    if ch in {'\\', '_', '^'}:
+    if ch in {'\\', '_', '^', '%'}:
       << '\\'
     << ch
 
@@ -473,10 +473,17 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
   of mdHLine: 
     << "\\clearpage"
 
-  of mdsWikilink: 
-    toTex MdNode(kind: mdsItalic, children: @[MdNode(kind: mdbPar, children: @[
-      MdNode(kind: mdsText, content: "WIKILINK")
-    ])]), settings, result
+  of mdsWikilink:
+    let parts = n.content.rsplit('|', 1)
+    let label = 
+      case parts.len
+      of 1: parts[0].rsplit('/', 1)[^1]
+      else: parts[^1]
+
+    toTex MdNode(kind: mdsItalic, children: @[
+      MdNode(kind: mdbPar, children: @[
+        MdNode(kind: mdsText, content: label)
+      ])]), settings, result
 
   of mdWikiEmbed:
     << "\\begin{figure}[H]\n"
