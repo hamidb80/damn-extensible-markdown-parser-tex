@@ -1,15 +1,15 @@
 # Concept
 
 # Def
-this is under\_line should be escaped
+this under\_line should be escaped
 
-the [[wikilink]]
+the [[dir/wikilink | with label]]
 
 why ***not*** this?
 
 the `code++`  .
 
-bug **I _don't_ know** ... **wow** _another_ Oh I love math $\sin x \gets 2$ totally 
+bug **I _don't_ know** ... **wow** _another_ Oh I love math $\sin x \gets 2$ totally ==I mean== really
 
 
 -------
@@ -61,3 +61,5 @@ my list
 - $=1$ normal
 - $>1$ significant effect
 - $\infty$ straight line // like X axis at y=mean 
+
+it does matter that you can handle both `$` and $`$
