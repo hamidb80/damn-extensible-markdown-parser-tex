@@ -70,7 +70,6 @@ type
     priority:  int    # for header
     lang:      string # for code
     href:      string # for link
-    size:      Option[int]
 
   MdSettings* = object
     langdir*:   MdDir
@@ -281,49 +280,34 @@ func empty(z: seq or string): bool =
 func filled(z: seq or string): bool = 
   not empty z
 
-# func subtract*(n, m: Slice[int]): seq[Slice[int]] = 
-#   # case 1
-#   # n-----------n
-#   #    m----m
-#   # o-o      o--o
-
-#   # case 2
-#   #    n-----n
-#   # m----------m
-#   #    nothing
-  
-#   # case 3
-#   # n-----n
-#   #    m------m
-#   # o-o
-
-#   # case 4
-#   #    n------n
-#   # m------m
-#   #         o-o
-
-#   # case 5
-#   # n------n
-#   #          m------m
-#   # o------o
-
-#   # case 6
-#   #          n------n
-#   # m------m
-#   #          o------o
-
-#   if n.a < m.a: # start only
-#     result.add n.a .. min(n.b, m.a-1)
-  
-#   if n.b > m.b: # end only
-#     result.add max(n.a, m.b+1) .. n.b
-
-# func intersects*(n, m: Slice[int]): bool =
-#   subtract(n, m) != @[n]
-
 func contains*(n, m: Slice[int]): bool =
   m.a in n and 
   m.b in n
+
+
+func getWikiLabel*(inner: string): string = 
+  ## gets the label from wiki-link or wiki-embed
+  ## 
+  ## there are 2 possible case:
+  ## 1. with    label `[[data science/PCA]]` => PCA
+  ## 2. without label `[[data science/PCA | PCA method]]` => PCA method
+
+  let parts = inner.rsplit('|', 1)
+  let label = 
+    case parts.len
+    of 1: parts[0].rsplit('/', 1)[^1]
+    else: parts[^1]
+
+  strip label
+
+func getWikiPath*(inner: string): string = 
+  inner.split('|', 1)[0].strip
+
+func getWikiEmbedSize*(inner: string): Option[int] = 
+  let parts = inner.split('|', 1)
+  case parts.len
+  of 1: none int
+  else: some parts[1].strip.parseInt
 
 # ----- Convertors ---------------------------------
 
@@ -475,23 +459,18 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << "\\clearpage"
 
   of mdsWikilink:
-    let parts = n.content.rsplit('|', 1)
-    let label = 
-      case parts.len
-      of 1: parts[0].rsplit('/', 1)[^1]
-      else: parts[^1]
-
     toTex MdNode(kind: mdsItalic, children: @[
       MdNode(kind: mdbPar, children: @[
-        MdNode(kind: mdsText, content: label)
+        MdNode(kind: mdsText, content: getWikiLabel n.content)
       ])]), settings, result
 
   of mdWikiEmbed:
     << "\\begin{figure}[H]\n"
     << "\\centering\n"
     << "\\includegraphics["
-    if isSome n.size: 
-      let size = (n.size.get / settings.pageWidth) * (15)
+    let s = n.content.getWikiEmbedSize
+    if isSome s: 
+      let size = (s.get / settings.pageWidth) * (15)
       << "width="
       << formatFloat(size, precision=3)
       << "cm,"
@@ -1029,17 +1008,8 @@ proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode =
            content: content[codeslice].strip)
 
   of mdWikiEmbed:
-    let 
-      text = split(content[contentslice], '|')
-      url  = text[0].strip
-      size = 
-        case text.len
-        of 1: none int
-        else: some text[1].strip.parseInt
-    
     MdNode(kind: kind,
-           size: size,
-           content: url)
+           content: content[contentslice])
 
   of mdbList:
     var b = MdNode(kind: mdbList)

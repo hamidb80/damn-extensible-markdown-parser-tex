@@ -1,9 +1,9 @@
-import std/[
-  unittest,
-]
+import std/[unittest, options]
 import md
 
+
 suite "Utils":
+
   test "startsWith":
     check 4        == startsWith("### hello",        0, p"#+\s+")
     check 2        == startsWith("# hello",          0, p"#+\s+")
@@ -16,3 +16,25 @@ suite "Utils":
     check 4        == startsWith("43. hi",           0, p"\d+. ")
     check notfound == startsWith("",                 0, p"\d+. ")
     check notfound == startsWith("**",               0, p"* ")
+
+
+
+suite "Functionality":
+
+  test "getWikiLabel":
+    check "SVD" == getWikiLabel "content/linear algebra/SVD"
+    check "SVD" == getWikiLabel "linear algebra/SVD"
+    check "SVD" == getWikiLabel "SVD"
+    check "linear algebra" == getWikiLabel "content/linear algebra"
+    check "singular value decomposition" == getWikiLabel "linear algebra/SVD | singular value decomposition"
+
+  test "getWikiEmbedSize":
+    check some(400) == getWikiEmbedSize "assets/image.png| 400"
+    check some(400) == getWikiEmbedSize "assets/image.png | 400"
+    check some(400) == getWikiEmbedSize " assets/image.png |400"
+    check none(int) == getWikiEmbedSize "assets/image.png"
+    check none(int) == getWikiEmbedSize "image.png"
+
+  test "getWikiPath":
+    check "content/linear algebra/SVD" == getWikiPath " content/linear algebra/SVD "
+    check "assets/image.png" == getWikiPath " assets/image.png |400"
