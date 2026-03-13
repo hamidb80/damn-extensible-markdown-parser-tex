@@ -262,9 +262,6 @@ proc bake(content; slice; mask; spanTokens: seq[MdSpan]): seq[tuple[span: MdSpan
     else:
       break
 
-# template TODO: untyped =
-#   raise newException(ValueError, "TODO")
-
 template `<<`(smth): untyped {.dirty.} =
   result.add smth
 
@@ -304,10 +301,10 @@ func getWikiLabel*(inner: string): string =
 func getWikiPath*(inner: string): string = 
   inner.split('|', 1)[0].strip
 
-func getWikiEmbedSize*(inner: string): int = 
+func getWikiEmbedSize*(inner: string, fallback: int = 0): int = 
   let parts = inner.split('|', 1)
   case parts.len
-  of 1: 0
+  of 1: fallback
   else: parts[1].strip.parseInt
 
 # ----- Convertors ---------------------------------
@@ -430,7 +427,6 @@ func toJson*(n: MdNode, result: var string) =
 
     << ']'
   result.add "}"
-
 
 func toJson*(n: MdNode): string = 
   toJson n, result
@@ -1170,6 +1166,21 @@ proc parseMarkdown*(content): MdNode =
     cursor = tail
 
 # ------ Pre-Processors ---------------------------
+
+func persianFixerImpl(n: MdNode) =
+  case n.kind
+  of mdsText:
+    discard
+
+  else:
+    for ch in n.children:
+      persianFixerImpl ch
+
+func persianFixer(root: sink MdNode): MdNode =
+  # می فعل -> می،فعل
+  persianFixerImpl root
+  root
+
 
 func attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode = 
   ## pipe (preprocessor)
