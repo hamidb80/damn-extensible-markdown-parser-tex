@@ -7,7 +7,8 @@ import std/[
   lists, 
   algorithm, 
   tables, 
-  options
+  options,
+  json
 ]
 
 # ----- Type Defs  -------------------------------
@@ -284,7 +285,7 @@ func contains*(n, m: Slice[int]): bool =
   m.a in n and 
   m.b in n
 
-
+# --- wiki-link
 func getWikiLabel*(inner: string): string = 
   ## gets the label from wiki-link or wiki-embed
   ## 
@@ -311,25 +312,128 @@ func getWikiEmbedSize*(inner: string): int =
 
 # ----- Convertors ---------------------------------
 
-func toXml*(n: MdNode, result: var string) = 
-  << "<"
-  << $n.kind
-  << ">"
+func prettyName(k: MdNodeKind): string = 
+  case k
+  of mdWrap: "wrapper"
+  of mdFrontMatter: "front-matter"
+  of mdbHeader: "header"
+  of mdbPar: "paragraph"
+  of mdsLine: "line"
+  of mdbCode: "code-block"
+  of mdbMath: "math-block"
+  of mdbQuote: "quote"
+  of mdbList: "list"
+  of mdbTable: "table"
+  of mdsDir: "text-direction"
+  of mdsBoldItalic: "bold-italic"
+  of mdsBold: "bold"
+  of mdsItalic: "italic"
+  of mdsHighlight: "highlight"
+  of mdsCode: "inline-code"
+  of mdsMath: "inline-math"
+  of mdsLink: "link"
+  of mdsParen: "paren"
+  of mdsBracket: "square-bracket"
+  of mdsEmbed: "inline-embed"
+  of mdsWikilink: "wiki-link"
+  of mdsComment: "comment"
+  of mdWikiEmbed: "wiki-embed"
+  of mdsText: "text"
+  of mdHLine: "horizontal-line"
+
+func prettyName(d: MdDir): string = 
+  case d
+  of mddLtr: "lrt"
+  of mddRtl: "rtl"
+  of mddUndecided: "undecided"
+
+
+func addJsonKey*(result: var string, key: string) = 
+  << '"'
+  << key
+  << '"'
+  << ':'
+
+template adjk(smth; sep=true): untyped {.dirty.} =
+  if sep: result.add ','
+  addJsonKey result, smth
+
+template adjv(str: string): untyped {.dirty.} =
+  escapeJson str, result
+
+template adjv(num: int): untyped {.dirty.} =
+  add result, $num
+
+template adjv(cond: bool): untyped {.dirty.} =
+  add result, $cond
+
+template adjp(key, val): untyped {.dirty.} =
+  adjk key
+  adjv val
+
+
+func toJson*(n: MdNode, result: var string) = 
+  # raise newException(ValueError, "TODO")
+
+  << '{'
+  adjk "kind", false
+  adjv prettyName n.kind
+
+  # --- content
+  case n.kind
+  of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdHLine, mdsHighlight: 
+    discard
+  
+  of mdbHeader: 
+    adjp "level", n.priority
+  
+  of mdbCode, mdbMath: 
+    adjp "content", n.content
+  
+  of mdsDir: 
+    adjp "dir", prettyName n.dir
+
+  of mdbList: 
+    adjp "numbered", n.numbered
+  
+  of mdsCode, mdsMath, mdsText: 
+    adjp "content", n.content
+  
+  of mdsLink: 
+    adjp "ref", n.content
+  
+  of mdsEmbed: 
+    adjp "ref", getWikiPath n.content
+  
+  of mdsWikilink: 
+    adjp "ref", getWikiPath n.content
+    adjp "label", getWikiLabel n.content
+  
+  of mdWikiEmbed: 
+    adjp "ref", getWikiPath n.content
+    adjp "size", getWikiEmbedSize n.content
+
+  of mdbTable, mdFrontMatter: 
+    raise newException(ValueError, "TODO")
+
+  # --- children
 
   case n.kind
-  of MdLeafNodes: << n.content
-  else          : discard
+  of MdLeafNodes: discard
+  else:
+    adjk "children"
+    << '['
 
-  for i, sub in n.children:
-    if i != 0: << ' '
-    toXml sub, result
+    for i, sub in n.children:
+      if 0 < i: << ','
+      toJson sub, result      
 
-  << "</"
-  << $n.kind
-  << ">"
+    << ']'
+  result.add "}"
 
-func toXml*(n: MdNode): string = 
-  toXml n, result
+
+func toJson*(n: MdNode): string = 
+  toJson n, result
 
 
 func writeEscapedTex*(content; result: var string) = 

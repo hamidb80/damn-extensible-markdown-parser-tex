@@ -35,7 +35,7 @@ when isMainModule:
       result   =
         case oext.toLowerAscii
         of ".tex": toTex md, settings
-        of ".xml": toXml md
+        of ".json": toJson md
         else:      quit fmt"invalid output file extension '{oext}', see help"
 
     try:    writeFile opath, result
@@ -49,5 +49,5 @@ when isMainModule:
       WHERE:
         LANG_DIR   `ltr` or `rtl` or `nodir`
         PAGE_WIDTH integer number. according to this parameter, the width of images are set
-        EXT        `tex` or `xml`
+        EXT        `tex` or `json`
     """

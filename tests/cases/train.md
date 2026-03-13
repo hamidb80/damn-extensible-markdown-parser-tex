@@ -81,13 +81,13 @@ the notation `^` and `_` means upper and lower but in local neighborhood
 
 
 ### 2-37 some accelerometers
-![[accelerator-opportunity-dataset.png| 400]]
+![[zz-accelerator-opportunity-dataset.png| 400]]
 // position of accelerator sensors on person's body
 
-recorded data is only Acceleration in 3D // `acc[X|Y|Z]`
+recorded data is only Acceleration in 3D // i.e. `acc[X|Y|Z]`
  
 ### 38-102 some [[IMU]]s
-![[imu-sensors-opportunity-dataset.png| 400]]
+![[zz-imu-sensors-opportunity-dataset.png| 400]]
 // position of IMU sensors on person's body
 
 [[IMU]] sensors measure the following data
@@ -98,7 +98,7 @@ recorded data is only Acceleration in 3D // `acc[X|Y|Z]`
 
 
 ### 103-134 shoes
-![[sensors-on-shoes-opportunity-dataset.png| 700]]
+![[zz-sensors-on-shoes-opportunity-dataset.png| 700]]
 // sensors attached to the shoes
 
 some sensors are attached to  `L-SHOE` and `R-SHOE` or simply left and right shoe and they provide following data:
@@ -112,7 +112,7 @@ some sensors are attached to  `L-SHOE` and `R-SHOE` or simply left and right sho
 
 
 ## 135-194 Object sensors 
-![[object-sensors-opportunity-dataset.png| 500]]
+![[zz-object-sensors-opportunity-dataset.png| 500]]
 // example of sensors that are attached to the objects
 
 sensors attached to the objects
@@ -142,7 +142,7 @@ and provide acceleration and gyro as
 4. LOWERDRAWER: S1 … S3
 5. UPPERDRAWER
 
-![[reed-switch-placements--opportunity-dataset.png| 600]]
+![[zz-reed-switch-placements--opportunity-dataset.png| 600]]
 // Reed switches usage example
 
 with help of them, you can detect states like
@@ -153,18 +153,18 @@ with help of them, you can detect states like
 
 ### 208-231 some more Accelerometers
 
-![[wide-view-room-opportunity-dataset.png | 800]]
+![[zz-wide-view-room-opportunity-dataset.png| 800]]
 // map of room in which dataset is recorded
 
 the acceleration of these objects are recorded:
-1) DOOR1
-2) LAZYCHAIR
-3) DOOR2
-4) DISHWASHER
-5) UPPERDRAWER
-6) LOWERDRAWER
-7) MIDDLEDRAWER
-8) FRIDGE
+1. DOOR1
+2. LAZYCHAIR
+3. DOOR2
+4. DISHWASHER
+5. UPPERDRAWER
+6. LOWERDRAWER
+7. MIDDLEDRAWER
+8. FRIDGE
 
 ### 232-243 location tags
  
@@ -185,7 +185,7 @@ the labels focused on the _multimodal_ perception and learning of human activiti
 - gestures
 - modes of locomotion
 - higher-level behavior
-![[multi-level-labeling-opportunity-dataset.png| 700]]
+![[zz-multi-level-labeling-opportunity-dataset.png| 700]]
 // example of multimodal perception
 
 all possible values for label is listed in the file `label_legend.txt`.
@@ -204,9 +204,9 @@ all possible values for label is listed in the file `label_legend.txt`.
 here are some comparisons made by authors of other datasets:
 
 ## [OctoNet](https://openreview.net/forum?id=z3TftXOizf)
-![[OctoNet-dataset-comparison-har.png| 1000]]
+![[zz-OctoNet-dataset-comparison-har.png| 1000]]
 // comparison of HAR datasets by OctoNet dataset paper
 
 ## [CAPTURE-24](https://www.nature.com/articles/s41597-024-03960-3) 
-![[capture-24-dataset-comparison-har.png| 1000]]
+![[zz-capture-24-dataset-comparison-har.png| 1000]]
 // comparison of HAR datasets by Capture-24 dataset paper
