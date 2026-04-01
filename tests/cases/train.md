@@ -48,9 +48,9 @@ designed to generate a large number of activity instances in a more constrained 
 
 # Folder Structure  
 * `{person}-{run}/`
-	- `{user}-{run}_side.avi` : new, anonymized video of the person (10 fps)
-	- `{user}-{run}_pose.csv` : new, created by OpenPose // (skeleton tracking data)
-	- `{user}-{run}_sensors_data.txt` : old
+	- `{user}-{run}_side.avi`: new, anonymized video of the person (10 fps)
+	- `{user}-{run}_pose.csv`: new, created by OpenPose // (skeleton tracking data)
+	- `{user}-{run}_sensors_data.txt`: old
 	- `{user}-{run}_{label}.srt`: extracted labels from `{user}-{run}_sensors_data.txt`, exported as video subtitle
 
 

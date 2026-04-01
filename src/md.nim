@@ -60,17 +60,19 @@ type
   # maybe I apply object oriented probramming?
   MdNode* = ref object
     # common
-    kind:     MdNodeKind
-    children: seq[MdNode]
-    content:  string
-    slice:    Slice[int]
+    kind*:     MdNodeKind
+    children*: seq[MdNode]
+    content*:  string
+    slice*:    Slice[int]
 
     # specific
-    numbered:  bool   # for list
-    dir:       MdDir  # for text
-    priority:  int    # for header
-    lang:      string # for code
-    href:      string # for link
+    numbered*:  bool   # for list
+    dir*:       MdDir  # for text
+    priority*:  int    # for header
+    lang*:      string # for code
+    href*:      string # for link
+
+    spaceBefore*: bool
 
   MdSettings* = object
     langdir*:   MdDir
@@ -272,11 +274,11 @@ func isUnicode(ch): bool =
   127 < ch.uint
 
 # --- seq
-func empty(z: seq or string): bool = 
+func isEmpty(z: seq or string): bool = 
   z.len == 0
 
 func filled(z: seq or string): bool = 
-  not empty z
+  not isEmpty z
 
 func contains*(n, m: Slice[int]): bool =
   m.a in n and 
@@ -439,6 +441,8 @@ func writeEscapedTex*(content; result: var string) =
     << ch
 
 func toTex*(n: MdNode, settings: MdSettings, result: var string) = 
+  if n.spaceBefore: << ' '
+
   case n.kind
 
   of mdWrap:
@@ -469,7 +473,6 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
 
   of mdsLine:
     for i, sub in n.children:
-      if i != 0: << ' '
       toTex sub, settings, result
 
   of mdsDir: 
@@ -926,6 +929,30 @@ proc linesSlice(content; slice;): seq[Slice[int]] =
     i = s+1
 
 
+func initMaskOf*(content): seq[bool] = 
+  newSeqWith content.len, false
+
+proc markSpace(root: MdNode; mask; content) = 
+  var stack = @[root]
+  var last_leaf: MdNode = nil
+
+  while stack.filled:
+    let cur = stack.pop
+
+    if cur.kind in MdLeafNodes + {mdsParen, mdsBracket}:
+
+      if not last_leaf.isNil:
+        let rng = last_leaf.slice.b+1 .. cur.slice.a-1
+        for j in rng:
+          if content[j] in {' ', '\t'}:
+            cur.spaceBefore = true
+            break
+
+      last_leaf = cur
+    
+    for i in 1 .. cur.children.len:
+      stack.add cur.children[^i]
+
 proc parseParMdSpans*(content; slice; mask): seq[MdNode] = 
   var acc: seq[MdNode]
 
@@ -1001,8 +1028,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
     indexes: DoublyLinkedList[Slice[int]]
     
   # dir and text ...
-  block dir_detect:
-    # --- text direction
+  block dir_detect: # --- text direction
     var 
       newIndexes: seq[Slice[int]]
     
@@ -1016,9 +1042,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
 
     indexes = toDoublyLinkedList newIndexes
 
-  block text_sep:
-    # --- remove the escape characters
-
+  block text_sep: # --- remove the escape characters
     for area in indexes: # all other non matched scrabbles
       var cur = area
 
@@ -1068,6 +1092,8 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
 
       else:
         discard stack.pop
+
+  markSpace root, mask, content
 
   root.children
 
@@ -1153,7 +1179,7 @@ proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode =
 
 proc parseMarkdown*(content): MdNode = 
   result = MdNode(kind: mdWrap)
-  var mask = newSeqWith(content.len, false)
+  var mask = initMaskOf content
 
   var cursor = 0
   while cursor < content.len:

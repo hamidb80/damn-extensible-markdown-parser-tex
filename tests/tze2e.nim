@@ -14,8 +14,8 @@ suite "E2E":
             fname     = path.splitFile.name
             settings  = MdSettings(pagewidth: 1000, langdir: if fname == "fa": mddRtl else: mddLtr)
 
-          writeFile fmt"./dist/{fname}.xml", toXml newdoc
-          writeFile fmt"./dist/{fname}.tex", toTex(newdoc, settings)
+          writeFile fmt"./dist/{fname}.json", toJson newdoc
+          writeFile fmt"./dist/{fname}.tex",  toTex(newdoc, settings)
           
         except CatchableError:
           check false
