@@ -933,11 +933,12 @@ func initMaskOf*(content): seq[bool] =
   newSeqWith content.len, false
 
 proc markSpace(root: MdNode; mask; content) = 
-  var stack = @[root]
+  var stack = @[@[root]]
   var last_leaf: MdNode = nil
 
   while stack.filled:
-    let cur = stack.pop
+    let hie = stack.pop
+    let cur = hie[^1]
 
     if cur.kind in MdLeafNodes + {mdsParen, mdsBracket}:
 
@@ -945,13 +946,23 @@ proc markSpace(root: MdNode; mask; content) =
         let rng = last_leaf.slice.b+1 .. cur.slice.a-1
         for j in rng:
           if content[j] in {' ', '\t'}:
-            cur.spaceBefore = true
+            # propagate space to parent, tries to push the leading space out of block
+
+            for i in 1 .. hie.len-1:
+              let node = hie[^i]
+              let parent = hie[^(i+1)]
+              let isFirst = parent.children[0] == node
+
+              if not isFirst:
+                node.spaceBefore = true 
+                break
+
             break
 
       last_leaf = cur
     
     for i in 1 .. cur.children.len:
-      stack.add cur.children[^i]
+      stack.add hie & cur.children[^i]
 
 proc parseParMdSpans*(content; slice; mask): seq[MdNode] = 
   var acc: seq[MdNode]
