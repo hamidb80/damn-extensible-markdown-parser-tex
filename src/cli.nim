@@ -11,8 +11,7 @@ const
 
 
 when isMainModule:
-  case paramCount()
-  of 4:
+  if paramCount() >= 4:
     let
       dir   = paramStr 1
       pw    = paramStr 2

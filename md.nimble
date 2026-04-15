@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.3.14"
+version       = "0.3.15"
 author        = "hamidb80"
 description   = "damn extensible markdown parser + Tex convertor"
 license       = "WTFPL"
