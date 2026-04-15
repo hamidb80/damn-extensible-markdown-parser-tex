@@ -5,7 +5,7 @@ const
   pkg     = slurp("../md.nimble")
   i       = pkg.find('"')
   s       = pkg.find('"', i+1)
-  version = pkg[i+1 .. s-1]
+  version = pkg[i+1 .. s-1] # NimblePkgVersion
 
   persian_verb_flag = "persian_cnt_verb"
 

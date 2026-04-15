@@ -1208,10 +1208,20 @@ proc parseMarkdown*(content): MdNode =
 
 # ------ Pre-Processors ---------------------------
 
+const semiSpace = "\u200c" # persian semi space
+
+func fixCommonPersianTypos*(s: string): string =
+  multiReplace s, [ 
+    ("میشو", "می شو"),
+    ("میکن", "می کن"),
+    (" " & "ها", semiSpace & "ها"), # XXX make your you don't write هایده هایما هار هال هاب ...
+  ]
+
+
 proc removePersianSpace*(s: string): string =
-  proc repl(m: RegexMatch): string = 
+  func repl(m: RegexMatch): string = 
     if m.captureBounds[0].a == 0 or not s[m.captureBounds[0].a-1].isUnicode:
-      m.captures[0] & "\u200c" & m.captures[1]
+      m.captures[0] & semiSpace & m.captures[1]
     else:
       m.match
 
@@ -1221,7 +1231,7 @@ proc removePersianSpace*(s: string): string =
 proc persianContVerbFixerImpl(n: MdNode) =
   case n.kind
   of mdsText:
-    n.content = removePersianSpace n.content
+    n.content = removePersianSpace fixCommonPersianTypos n.content
 
   else:
     for ch in n.children:

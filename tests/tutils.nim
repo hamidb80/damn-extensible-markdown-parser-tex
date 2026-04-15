@@ -54,3 +54,6 @@ suite "other":
     check "سلامی به گرمی ماه"    == removePersianSpace "سلامی به گرمی ماه"
     check "من نمی\u200cخواهم"  == removePersianSpace "من نمی خواهم"
     check replace("می جنگیم، می میریم، سازش نمی پذیریم", "می ", "می\u200c") == removePersianSpace "می جنگیم، می میریم، سازش نمی پذیریم"
+
+  test "fixCommonPersianTypos":
+    check "خانه\u200cها"  == fixCommonPersianTypos "خانه ها"
