@@ -58,7 +58,7 @@ when isMainModule:
     except: quit fmt"cannot write output file at '{opath}'"
 
   else:
-    quit fmt"""
+    quit dedent fmt"""
       === Damn Markdown Parser === 
       v{version}
 
@@ -70,5 +70,7 @@ when isMainModule:
         PAGE_WIDTH integer number. according to this parameter, the width of images are set
         EXT        `tex` or `json`
         FLAGS
-          - {persian_verb_flag}: می کنم -> می\u200cکنم
+          * {persian_verb_flag}: fixes some common persian tokens e.g.
+              می کنم -> می\u200cکنم
+              ستون ها <- ستون\u200cها
     """
