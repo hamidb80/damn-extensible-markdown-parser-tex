@@ -1,6 +1,9 @@
 import std/[os, strformat, strutils]
 import md
 
+const 
+  persian_verb_flag = "persian_cnt_verb"
+
 
 when isMainModule:
   case paramCount()
@@ -10,6 +13,8 @@ when isMainModule:
       pw    = paramStr 2
       ipath = paramStr 3
       opath = paramStr 4
+      prms  = commandLineParams()
+      is_pv = persian_verb_flag in prms[4..^1]
       
       (_,_, iext) = splitFile ipath
       (_,_, oext) = splitFile opath
@@ -31,7 +36,14 @@ when isMainModule:
           try:    readFile ipath
           except: quit fmt"cannot read input file at '{ipath}'"
         else:     quit fmt"invalid input file extension '{iext}', see help"
+      
+    var
       md       = attachNextCommentOfFigAsDesc parseMarkdown content
+
+    if is_pv:
+      md = persianContVerbFixer md
+
+    let
       result   =
         case oext.toLowerAscii
         of ".tex": toTex md, settings
@@ -42,12 +54,14 @@ when isMainModule:
     except: quit fmt"cannot write output file at '{opath}'"
 
   else:
-    quit """
+    quit fmt"""
       USAGE:
-         app LANG_DIR PAGE_WIDTH path/to/file.md path/to/file.EXT
+         app LANG_DIR PAGE_WIDTH path/to/file.md path/to/file.EXT ...FLAGS
 
       WHERE:
         LANG_DIR   `ltr` or `rtl` or `nodir`
         PAGE_WIDTH integer number. according to this parameter, the width of images are set
         EXT        `tex` or `json`
+        FLAGS
+          - {persian_verb_flag}: می کنم -> می\u200cکنم
     """

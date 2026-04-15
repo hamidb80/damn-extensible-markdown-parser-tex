@@ -8,7 +8,8 @@ import std/[
   algorithm, 
   tables, 
   options,
-  json
+  json,
+  nre,
 ]
 
 # ----- Type Defs  -------------------------------
@@ -272,6 +273,9 @@ template `<<`(smth): untyped {.dirty.} =
 # --- char
 func isUnicode(ch): bool = 
   127 < ch.uint
+
+# func isAscii(ch): bool = 
+#   not isUnicode ch
 
 # --- seq
 func isEmpty(z: seq or string): bool = 
@@ -1204,18 +1208,28 @@ proc parseMarkdown*(content): MdNode =
 
 # ------ Pre-Processors ---------------------------
 
-func persianFixerImpl(n: MdNode) =
+proc removePersianSpace*(s: string): string =
+  proc repl(m: RegexMatch): string = 
+    if m.captureBounds[0].a == 0 or not s[m.captureBounds[0].a-1].isUnicode:
+      m.captures[0] & "\u200c" & m.captures[1]
+    else:
+      m.match
+
+  s.replace re("(نمی|می)" & " " & "([ا-ی])"), repl
+
+  
+proc persianContVerbFixerImpl(n: MdNode) =
   case n.kind
   of mdsText:
-    discard
+    n.content = removePersianSpace n.content
 
   else:
     for ch in n.children:
-      persianFixerImpl ch
+      persianContVerbFixerImpl ch
 
-func persianFixer(root: sink MdNode): MdNode =
+proc persianContVerbFixer*(root: sink MdNode): MdNode =
   # می فعل -> می،فعل
-  persianFixerImpl root
+  persianContVerbFixerImpl root
   root
 
 

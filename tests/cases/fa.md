@@ -10,3 +10,5 @@ character \\ is good
 
 # گنج رنج
 این الگروریتم KNN یا همون K Nearest Neightbours بد است
+
+همیشه در دسترس می باشم.

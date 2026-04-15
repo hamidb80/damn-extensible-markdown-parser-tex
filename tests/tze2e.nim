@@ -10,7 +10,7 @@ suite "E2E":
           let 
             content   = readFile path
             doc       = parseMarkdown content
-            newdoc    = attachNextCommentOfFigAsDesc doc
+            newdoc    = persianContVerbFixer attachNextCommentOfFigAsDesc doc
             fname     = path.splitFile.name
             settings  = MdSettings(pagewidth: 1000, langdir: if fname == "fa": mddRtl else: mddLtr)
 

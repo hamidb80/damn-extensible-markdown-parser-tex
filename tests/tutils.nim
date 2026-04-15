@@ -1,4 +1,4 @@
-import std/[unittest, options]
+import std/[unittest, strutils]
 import md
 
 
@@ -46,3 +46,11 @@ suite "Tex":
     var str = ""
     writeEscapedTex r"you^re 50% of _me :-\\", str
     check str ==    r"you\^re 50\% of \_me :-\\\\"
+
+
+suite "other":
+  test "removePersianSpace":
+    check "می\u200cکنم"        == removePersianSpace "می کنم"
+    check "سلامی به گرمی ماه"    == removePersianSpace "سلامی به گرمی ماه"
+    check "من نمی\u200cخواهم"  == removePersianSpace "من نمی خواهم"
+    check replace("می جنگیم، می میریم، سازش نمی پذیریم", "می ", "می\u200c") == removePersianSpace "می جنگیم، می میریم، سازش نمی پذیریم"
