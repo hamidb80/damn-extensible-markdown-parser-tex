@@ -1,7 +1,12 @@
 import std/[os, strformat, strutils]
 import md
 
-const 
+const
+  pkg     = slurp("../md.nimble")
+  i       = pkg.find('"')
+  s       = pkg.find('"', i+1)
+  version = pkg[i+1 .. s-1]
+
   persian_verb_flag = "persian_cnt_verb"
 
 
@@ -55,6 +60,9 @@ when isMainModule:
 
   else:
     quit fmt"""
+      === Damn Markdown Parser === 
+      v{version}
+
       USAGE:
          app LANG_DIR PAGE_WIDTH path/to/file.md path/to/file.EXT ...FLAGS
 
