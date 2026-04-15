@@ -1214,6 +1214,8 @@ func fixCommonPersianTypos*(s: string): string =
   multiReplace s, [ 
     ("میشو", "می شو"),
     ("میکن", "می کن"),
+    ("میتوا", "می توا"),
+    ("میبای", "می بای"),
     (" " & "ها", semiSpace & "ها"), # XXX make your you don't write هایده هایما هار هال هاب ...
   ]
 
