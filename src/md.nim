@@ -1212,11 +1212,21 @@ const semiSpace = "\u200c" # persian semi space
 
 func fixCommonPersianTypos*(s: string): string =
   multiReplace s, [ 
+    (" " & "ها", semiSpace & "ها"), # XXX make your you don't write هایده هایما هار هال هاب ...
+    ("جزییات", "جزئیات"),
+    ("هییت", "هیئت"),
+    # ("جزو", "جزء"), XXX can make mistake جزوات
+    
+    ("بیش تر", "بیش\u200cتر"),
+    ("بیشتر", "بیش\u200cتر"),
+    ("کمتر", "کم\u200cتر"),
+    ("کم تر", "کم\u200cتر"),
+
     ("میشو", "می شو"),
     ("میکن", "می کن"),
     ("میتوا", "می توا"),
     ("میبای", "می بای"),
-    (" " & "ها", semiSpace & "ها"), # XXX make your you don't write هایده هایما هار هال هاب ...
+    ("میگی", "می گی"),
   ]
 
 
