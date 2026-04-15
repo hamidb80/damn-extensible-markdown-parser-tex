@@ -43,17 +43,16 @@ when isMainModule:
         else:     quit fmt"invalid input file extension '{iext}', see help"
       
     var
-      md       = attachNextCommentOfFigAsDesc parseMarkdown content
-
+      md = attachNextCommentOfFigAsDesc parseMarkdown content
     if is_pv:
       md = persianContVerbFixer md
 
     let
       result   =
         case oext.toLowerAscii
-        of ".tex": toTex md, settings
+        of ".tex":  toTex md, settings
         of ".json": toJson md
-        else:      quit fmt"invalid output file extension '{oext}', see help"
+        else:       quit fmt"invalid output file extension '{oext}', see help"
 
     try:    writeFile opath, result
     except: quit fmt"cannot write output file at '{opath}'"
