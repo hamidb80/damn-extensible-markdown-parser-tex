@@ -1211,23 +1211,36 @@ proc parseMarkdown*(content): MdNode =
 const semiSpace = "\u200c" # persian semi space
 
 func fixCommonPersianTypos*(s: string): string =
-  multiReplace s, [ 
-    (" " & "ها", semiSpace & "ها"), # XXX make your you don't write هایده هایما هار هال هاب ...
+  multiReplace(s, [
+    # spell checks
     ("جزییات", "جزئیات"),
     ("هییت", "هیئت"),
-    # ("جزو", "جزء"), XXX can make mistake جزوات
+    ("تاثیر", "تأثیر"),
+    ("سوال", "سؤال"),
     
+    # arabic correctness
+    ("اصلا", "اصلاً"),
+    ("مثلا", "مثلاً"),
+    ("اولا", "ًاولا"),
+    ("ثانیا", "ثانیاً"),
+
+    # style preference
+    ("آنها", "آن ها"),
+    ("آنقدر", "آن\u200cقدر"),
     ("بیش تر", "بیش\u200cتر"),
     ("بیشتر", "بیش\u200cتر"),
     ("کمتر", "کم\u200cتر"),
     ("کم تر", "کم\u200cتر"),
-
+    
+    # continous verbs 
     ("میشو", "می شو"),
+    ("میشد", "می شد"),
     ("میکن", "می کن"),
+    ("میکر", "می کر"),
     ("میتوا", "می توا"),
     ("میبای", "می بای"),
     ("میگی", "می گی"),
-  ]
+  ]).replace(" " & "ها", semiSpace & "ها") # XXX make your you don't write هایده هایما هار هال هاب ...
 
 
 proc removePersianSpace*(s: string): string =
