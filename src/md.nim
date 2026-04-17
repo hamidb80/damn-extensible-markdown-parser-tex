@@ -1224,6 +1224,7 @@ func fixCommonPersianTypos*(s: string): string =
     ("مثلا", "مثلاً"),
     ("اولا", "ًاولا"),
     ("ثانیا", "ثانیاً"),
+    # ("اتفاقا", "ًاتفاقا"), # XXX can be mistaken with اتفاقات
 
     # style preference
     ("آنها", "آن ها"),
@@ -1239,7 +1240,7 @@ func fixCommonPersianTypos*(s: string): string =
     ("میشو", "می شو"),
     ("میشد", "می شد"),
     ("میکن", "می کن"),
-    ("میکر", "می کر"),
+    ("میکرد", "می کرد"),
     ("میتوا", "می توا"),
     ("میبای", "می بای"),
     ("میگی", "می گی"),
@@ -1249,13 +1250,17 @@ func fixCommonPersianTypos*(s: string): string =
     ("میروند", "می روند"),
     ("میگویند", "می گویند"),
     ("میگوید", "می گوید"),
+    ("میدهد", "می دهد"),
+    ("میدهند", "می دهند"),
     
     ("شده است", "شده\u200cاست"),
     ("بوده است", "بوده\u200cاست"),
+    ("داده است", "داده\u200cاست"),
     ("شده اند", "شده\u200cاند"),
     ("بوده اند", "بوده\u200cاند"),
+    ("داده اند", "داده\u200cاند"),
 
-  ]).replace(" " & "ها", semiSpace & "ها") # XXX make your you don't write هایده هایما هار هال هاب ...
+  ]).replace(" " & "ها", semiSpace & "ها") # XXX make your you don't write  هان هایده هایما هار هال هاب ...
 
 
 proc removePersianSpace*(s: string): string =
@@ -1263,9 +1268,14 @@ proc removePersianSpace*(s: string): string =
     if m.captureBounds[0].a == 0 or not s[m.captureBounds[0].a-1].isUnicode:
       m.captures[0] & semiSpace & m.captures[1]
     else:
+      debugecho m.str
+      debugEcho (s[m.captureBounds[0].a-1].uint8)
+      debugEcho "'", (m.str.substr(m.captureBounds[0].a-2)), "'"
       m.match
 
-  s.replace re("(نمی|می)" & " " & "([ا-ی])"), repl
+  result = s
+  result = replace(result, re("(نمی|می)" & " " & "([ا-ی])"), repl) # ستون ها
+  result = replace(result, re("(هم)"    & " " & "([ا-ی])"), repl) # هم تراز
 
   
 proc persianContVerbFixerImpl(n: MdNode) =
