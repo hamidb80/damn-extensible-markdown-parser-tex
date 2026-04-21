@@ -7,7 +7,7 @@ const
   s       = pkg.find('"', i+1)
   version = pkg[i+1 .. s-1] # -d:NimblePkgVersion how to add this?
 
-  persian_verb_flag = "persian_cnt_verb"
+  persian_verb_flag = "persian_features"
 
 
 when isMainModule:
