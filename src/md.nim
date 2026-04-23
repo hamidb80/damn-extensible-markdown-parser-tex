@@ -570,7 +570,7 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
   of mdsWikilink:
     toTex MdNode(kind: mdsItalic, children: @[
       MdNode(kind: mdbPar, children: @[
-        MdNode(kind: mdsText, content: getWikiLabel n.content)
+        MdNode(kind: mdsText, content: getWikiLabel n.content) 
       ])]), settings, result
 
   of mdWikiEmbed:
@@ -985,7 +985,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       @[
         mds(@["`"], 1, mdsCode), 
         mds(@["$"], 1, mdsMath),
-        mds(@["[[", "]]"], 1, mdsWikilink),
+        mds(@["[[", "]]"], 1, mdsWikilink), # XXX special handling of inside of
       ],
 
       @[
@@ -1335,3 +1335,4 @@ func attachNextCommentOfFigAsDesc*(root: sink MdNode): MdNode =
 # TODO add footnote
 # TODO support enumerated list in form of a. b. c. ...
 # FIXME support for link inside parens ([label](url))
+# FIXME the label of wikilink does not get direction detection
