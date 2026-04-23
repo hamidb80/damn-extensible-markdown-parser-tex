@@ -465,9 +465,11 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << '\\'
     << tag
     << '{'
+    << "\\textbf{"
     for i, sub in n.children:
       if i != 0: << ' '
       toTex sub, settings, result
+    << '}'
     << '}'
 
   of mdbPar:
@@ -637,7 +639,12 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       toTex sub, settings, result
     << "]"
 
-  of mdbQuote, mdbTable, mdsEmbed:
+  of mdbQuote:
+    for i, sub in n.children:
+      if i != 0: << ' '
+      toTex sub, settings, result
+
+  of mdbTable, mdsEmbed:
     raise newException(ValueError, fmt"toTex for kind {n.kind} is not implemented")
 
 func toTex*(n: MdNode, settings: MdSettings): string = 
@@ -1252,6 +1259,7 @@ func fixCommonPersianTypos*(s: string): string =
     ("میگوید", "می گوید"),
     ("میدهد", "می دهد"),
     ("میدهند", "می دهند"),
+    ("میداد", "می داد"),
     
     ("شده است", "شده\u200cاست"),
     ("بوده است", "بوده\u200cاست"),
@@ -1268,9 +1276,9 @@ proc removePersianSpace*(s: string): string =
     if m.captureBounds[0].a == 0 or not s[m.captureBounds[0].a-1].isUnicode:
       m.captures[0] & semiSpace & m.captures[1]
     else:
-      debugecho m.str
-      debugEcho (s[m.captureBounds[0].a-1].uint8)
-      debugEcho "'", (m.str.substr(m.captureBounds[0].a-2)), "'"
+      # debugecho m.str
+      # debugEcho (s[m.captureBounds[0].a-1].uint8)
+      # debugEcho "'", (m.str.substr(m.captureBounds[0].a-2)), "'"
       m.match
 
   result = s
