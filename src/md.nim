@@ -118,7 +118,6 @@ const notfound* = -1
 
 const MdLeafNodes* = {mdsText, 
                       mdsMath, mdsCode, 
-                      mdsEmbed, mdWikiEmbed, mdsWikilink, 
                       mdbMath, mdbCode}
 
 # ----- Syntax Sugar -------------------------------
@@ -139,6 +138,9 @@ func mds(tks: seq[string], mi: int, k: MdNodeKind): MdSpan =
 
 func indices(smth: string or seq): Slice[int] = 
   0 ..< smth.len
+
+func `+`[T](i: T; s: Slice[T]): Slice[T] = 
+  s.a + i .. s.b + i
 
 func `[]`[T](s: Slice[T]; cursor: T): T = 
   s.a + cursor
@@ -284,28 +286,53 @@ func isEmpty(z: seq or string): bool =
 func filled(z: seq or string): bool = 
   not isEmpty z
 
+func validSlice(slice): bool =
+  slice.a <= slice.b
+
+func strip(s:  string, slice: Slice[int], chars: set[char] = Whitespace): Slice[int] = 
+  if validSlice slice:
+    var 
+      i = 0
+      j = 0
+
+    while s[slice.a + i] in chars and slice.a + i < slice.b + j: inc i
+    while s[slice.b + j] in chars and slice.a + i < slice.b + j: dec j
+
+    slice.a + i .. slice.b + j
+
+  else:
+    slice
+
 func contains*(n, m: Slice[int]): bool =
   m.a in n and 
   m.b in n
 
 # --- wiki-link
-func getWikiLabel*(inner: string): string = 
+func getWikiLabelSlice*(inner: string): Slice[int] = 
   ## gets the label from wiki-link or wiki-embed
   ## 
   ## there are 2 possible case:
   ## 1. with    label `[[data science/PCA]]` => PCA
   ## 2. without label `[[data science/PCA | PCA method]]` => PCA method
 
-  let parts = inner.rsplit('|', 1)
-  let label = 
-    case parts.len
-    of 1: parts[0].rsplit('/', 1)[^1]
-    else: parts[^1]
+  let sep = inner.rfind('|')
+  let rng = 
+    case sep
+    of -1: inner.rfind('/')+1 .. inner.high
+    else : sep+1 .. inner.high
+  
+  strip inner, rng
 
-  strip label
+func getWikiPathSlice*(inner: string): Slice[int] = 
+  let sep = inner.rfind('|')
+  let rng = 
+    case sep
+    of -1: 0 .. inner.high
+    else : 0 .. sep-1
 
-func getWikiPath*(inner: string): string = 
-  inner.split('|', 1)[0].strip
+  debugEcho (inner, rng)  
+  strip inner, rng
+
 
 func getWikiEmbedSize*(inner: string, fallback: int = 0): int = 
   let parts = inner.split('|', 1)
@@ -406,14 +433,14 @@ func toJson*(n: MdNode, result: var string) =
     adjp "ref", n.content
   
   of mdsEmbed: 
-    adjp "ref", getWikiPath n.content
+    adjp "ref", n.content[getWikiPathSlice n.content]
   
   of mdsWikilink: 
-    adjp "ref", getWikiPath n.content
-    adjp "label", getWikiLabel n.content
+    adjp "ref", n.content[getWikiPathSlice n.content]
+    adjp "label", n.content[getWikiLabelSlice n.content]
   
   of mdWikiEmbed: 
-    adjp "ref", getWikiPath n.content
+    adjp "ref", n.content[getWikiPathSlice n.content]
     adjp "size", getWikiEmbedSize n.content
 
   of mdbTable, mdFrontMatter: 
@@ -568,10 +595,9 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << "\\clearpage"
 
   of mdsWikilink:
-    toTex MdNode(kind: mdsItalic, children: @[
-      MdNode(kind: mdbPar, children: @[
-        MdNode(kind: mdsText, content: getWikiLabel n.content) 
-      ])]), settings, result
+    toTex MdNode(kind:    mdsItalic, 
+                children: n.children, 
+                slice:    n.slice), settings, result
 
   of mdWikiEmbed:
     << "\\begin{figure}[H]\n"
@@ -584,7 +610,7 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       << formatFloat(size, precision=3)
       << "cm,"
     << "keepaspectratio]{"
-    << n.content.getWikiPath
+    << n.content[getWikiPathSlice n.content]
     << "}\n"
     << "\\caption{"
     for i, sub in n.children:
@@ -985,7 +1011,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       @[
         mds(@["`"], 1, mdsCode), 
         mds(@["$"], 1, mdsMath),
-        mds(@["[[", "]]"], 1, mdsWikilink), # XXX special handling of inside of
+        mds(@["[[", "]]"], 0, mdsWikilink), 
       ],
 
       @[
@@ -1013,9 +1039,17 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
         var add = true
 
         case k
-        # of mdsWikilink:
-        #   if at(content, slice, mask, matches[i].borders[0].a-1) == '!': 
-        #     k = mdWikiEmbed
+        of mdsWikilink:
+          # if at(content, slice, mask, matches[i].borders[0].a-1) == '!': 
+          #   k = mdWikiEmbed
+          let m = matches[i]
+          let r = m.borders[0].b+1 .. m.borders[1].a-1
+          let s = r.a + getWikiLabelSlice(content[r])
+          echo (s, r)
+          for c in r:
+            mask[c] = c notin s
+
+          echo (content[r], content[s])
 
         # TODO add embed
 

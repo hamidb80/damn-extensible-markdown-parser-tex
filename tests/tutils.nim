@@ -22,11 +22,19 @@ suite "Utils":
 suite "Functionality":
 
   test "getWikiLabel":
-    check "SVD" == getWikiLabel "content/linear algebra/SVD"
-    check "SVD" == getWikiLabel "linear algebra/SVD"
-    check "SVD" == getWikiLabel "SVD"
-    check "linear algebra" == getWikiLabel "content/linear algebra"
-    check "singular value decomposition" == getWikiLabel "linear algebra/SVD | singular value decomposition"
+    let 
+      s1 = "content/linear algebra/SVD"
+      s2 = "linear algebra/SVD"
+      s3 = "SVD"
+      s4 = "content/linear algebra"
+      s5 = "linear algebra/SVD | singular value decomposition"
+
+    check "SVD" == s1[getWikiLabelSlice s1]
+    check "SVD" == s2[getWikiLabelSlice s2]
+    check "SVD" == s3[getWikiLabelSlice s3]
+    check "linear algebra" == s4[getWikiLabelSlice s4]
+    check "singular value decomposition" == s5[getWikiLabelSlice s5]
+
 
   test "getWikiEmbedSize":
     check 400 == getWikiEmbedSize "assets/image.png| 400"
@@ -36,8 +44,12 @@ suite "Functionality":
     check   0 == getWikiEmbedSize "image.png"
 
   test "getWikiPath":
-    check "content/linear algebra/SVD" == getWikiPath " content/linear algebra/SVD "
-    check "assets/image.png" == getWikiPath " assets/image.png |400"
+    let 
+      s1 = " content/linear algebra/SVD "
+      s2 = " assets/image.png |400"
+
+    check "content/linear algebra/SVD" == s1[getWikiPathSlice s1]
+    check "assets/image.png" == s2[getWikiPathSlice s2]
 
 
 suite "Tex":

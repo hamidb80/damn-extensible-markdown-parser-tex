@@ -8,6 +8,9 @@
 
 character \\ is good
 
+این یک [[wiki link]] است
+حالت دیگر آن [[wiki link| embed link]] است
+
 # گنج رنج
 این الگروریتم KNN یا همون K Nearest Neightbours بد است
 
