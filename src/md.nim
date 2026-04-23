@@ -330,7 +330,6 @@ func getWikiPathSlice*(inner: string): Slice[int] =
     of -1: 0 .. inner.high
     else : 0 .. sep-1
 
-  debugEcho (inner, rng)  
   strip inner, rng
 
 
@@ -437,7 +436,6 @@ func toJson*(n: MdNode, result: var string) =
   
   of mdsWikilink: 
     adjp "ref", n.content[getWikiPathSlice n.content]
-    adjp "label", n.content[getWikiLabelSlice n.content]
   
   of mdWikiEmbed: 
     adjp "ref", n.content[getWikiPathSlice n.content]
@@ -1045,11 +1043,8 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
           let m = matches[i]
           let r = m.borders[0].b+1 .. m.borders[1].a-1
           let s = r.a + getWikiLabelSlice(content[r])
-          echo (s, r)
           for c in r:
             mask[c] = c notin s
-
-          echo (content[r], content[s])
 
         # TODO add embed
 
