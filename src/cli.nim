@@ -35,7 +35,7 @@ when isMainModule:
         else      : quit fmt"invalid '{dir}' direction, see help"
       settings      = MdSettings(pagewidth: pagewidth, langdir: textdirection)
       
-      titleNode = documentTitleNode opath
+      titleNode = MdNode(kind: mdComment, content: fmt"generated from: {opath}")
 
       content  = 
         case iext.toLowerAscii

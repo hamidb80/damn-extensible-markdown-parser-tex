@@ -20,7 +20,7 @@ type
     mdWrap # XXX add indent to this (for indent detection, like in lists)
 
     # metadata
-    mdDocumentTitle # implicit
+    mdComment
     mdFrontMatter ## yaml
 
     # blocks
@@ -340,16 +340,12 @@ func getWikiEmbedSize*(inner: string, fallback: int = 0): int =
   of 1: fallback
   else: parts[1].strip.parseInt
 
-
-func documentTitleNode*(filename: string): MdNode = 
-  MdNode(kind: mdDocumentTitle, content: filename)
-
 # ----- Convertors ---------------------------------
 
 func prettyName(k: MdNodeKind): string = 
   case k
   of mdWrap: "wrapper"
-  of mdDocumentTitle: "document-title"
+  of mdComment: "comment"
   of mdFrontMatter: "front-matter"
   of mdbHeader: "header"
   of mdbPar: "paragraph"
@@ -419,8 +415,8 @@ func toJson*(n: MdNode, result: var string) =
   of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdHLine, mdsHighlight: 
     discard
 
-  of mdDocumentTitle:
-    adjp "file", n.content
+  of mdComment:
+    adjp "comment", n.content
   
   of mdbHeader: 
     adjp "level", n.priority
@@ -488,8 +484,9 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       toTex sub, settings, result
       << "\n\n"
 
-  of mdDocumentTitle:
-      << "% converted from: "
+  of mdComment:
+      << '%'
+      << ' '
       << n.content
       << '\n'
   
