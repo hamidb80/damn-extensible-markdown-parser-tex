@@ -17,7 +17,7 @@ import std/[
 type
   MdNodeKind* = enum
     # wrapper
-    mdWrap # XXX add indent to this (for indent detection, like in lists)
+    mdWrap
 
     # metadata
     mdComment
@@ -468,11 +468,19 @@ func toJson*(n: MdNode): string =
   toJson n, result
 
 
-func writeEscapedTex*(content; result: var string) = 
+func writeEscapedTexSimple*(content; result: var string) =
+    # of '<': ("\\textless ")
+    # of '>': ("\\textgreater ")
+    # of '[': ("{[}")
+    # of ']': ("{]}")
+
   for ch in content:
-    if ch in {'\\', '_', '^', '%'}:
+    case ch
+    of '\\', '_', '^', '%', '$', '#', '{', '}', '&':
       << '\\'
-    << ch
+      << ch
+    else:
+      << ch
 
 func toTex*(n: MdNode, settings: MdSettings, result: var string) = 
   if n.spaceBefore: << ' '
@@ -1270,7 +1278,7 @@ func fixCommonPersianTypos*(s: string): string =
     
     # arabic correctness
     ("دقیقا", "دقیقاً"),
-    ("اصلا", "اصلاً"),
+    # ("اصلا", "اصلاً"), # mistaken with اصلاحی
     ("مثلا", "مثلاً"),
     ("اولا", "ًاولا"),
     ("ثانیا", "ثانیاً"),
