@@ -468,7 +468,7 @@ func toJson*(n: MdNode): string =
   toJson n, result
 
 
-func writeEscapedTexSimple*(content; result: var string) =
+func writeEscapedTex*(content; result: var string) =
     # of '<': ("\\textless ")
     # of '>': ("\\textgreater ")
     # of '[': ("{[}")
