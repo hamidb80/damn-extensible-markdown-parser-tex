@@ -20,6 +20,7 @@ type
     mdWrap # XXX add indent to this (for indent detection, like in lists)
 
     # metadata
+    mdDocumentTitle # implicit
     mdFrontMatter ## yaml
 
     # blocks
@@ -339,11 +340,16 @@ func getWikiEmbedSize*(inner: string, fallback: int = 0): int =
   of 1: fallback
   else: parts[1].strip.parseInt
 
+
+func documentTitleNode*(filename: string): MdNode = 
+  MdNode(kind: mdDocumentTitle, content: filename)
+
 # ----- Convertors ---------------------------------
 
 func prettyName(k: MdNodeKind): string = 
   case k
   of mdWrap: "wrapper"
+  of mdDocumentTitle: "document-title"
   of mdFrontMatter: "front-matter"
   of mdbHeader: "header"
   of mdbPar: "paragraph"
@@ -412,6 +418,9 @@ func toJson*(n: MdNode, result: var string) =
   case n.kind
   of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdHLine, mdsHighlight: 
     discard
+
+  of mdDocumentTitle:
+    adjp "file", n.content
   
   of mdbHeader: 
     adjp "level", n.priority
@@ -478,6 +487,11 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     for i, sub in n.children:
       toTex sub, settings, result
       << "\n\n"
+
+  of mdDocumentTitle:
+      << "% converted from: "
+      << n.content
+      << '\n'
   
   of mdbHeader:
     let tag = 
@@ -1228,8 +1242,7 @@ proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode =
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
-proc parseMarkdown*(content): MdNode = 
-  result = MdNode(kind: mdWrap)
+proc parseMarkdown*(content; result: MdNode) = 
   var mask = initMaskOf content
 
   var cursor = 0
@@ -1241,6 +1254,10 @@ proc parseMarkdown*(content): MdNode =
     let b    = parseMdBlock(content, head .. tail-1, mask, kind)
     result.children.add b
     cursor = tail
+
+proc parseMarkdown*(content): MdNode = 
+  result = MdNode(kind: mdWrap)
+  parseMarkdown content, result
 
 # ------ Pre-Processors ---------------------------
 
@@ -1298,7 +1315,6 @@ func fixCommonPersianTypos*(s: string): string =
     ("داده اند", "داده\u200cاند"),
 
   ]).replace(" " & "ها", semiSpace & "ها") # XXX make your you don't write  هان هایده هایما هار هال هاب ...
-
 
 proc removePersianSpace*(s: string): string =
   func repl(m: RegexMatch): string = 

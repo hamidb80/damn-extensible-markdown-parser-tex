@@ -26,6 +26,7 @@ when isMainModule:
       pagewidth     = 
         try:    parseint pw
         except: quit fmt"invalid page width '{pw}', see help"
+      
       textdirection = 
         case dir.toLowerAscii
         of "ltr":   mddLtr
@@ -34,6 +35,8 @@ when isMainModule:
         else      : quit fmt"invalid '{dir}' direction, see help"
       settings      = MdSettings(pagewidth: pagewidth, langdir: textdirection)
       
+      titleNode = documentTitleNode opath
+
       content  = 
         case iext.toLowerAscii
         of ".md":
@@ -41,8 +44,10 @@ when isMainModule:
           except: quit fmt"cannot read input file at '{ipath}'"
         else:     quit fmt"invalid input file extension '{iext}', see help"
       
-    var
-      md = attachNextCommentOfFigAsDesc parseMarkdown content
+    var md = MdNode(kind: mdWrap, children: @[titleNode])
+    parseMarkdown(content, md)
+    md = attachNextCommentOfFigAsDesc md
+
     if is_pv:
       md = persianContVerbFixer md
 
