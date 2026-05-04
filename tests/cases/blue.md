@@ -1,3 +1,9 @@
+---
+aliases:
+- 1
+- 2
+---
+
 # Concept
 
 # Def

@@ -446,7 +446,10 @@ func toJson*(n: MdNode, result: var string) =
     adjp "ref", n.content[getWikiPathSlice n.content]
     adjp "size", getWikiEmbedSize n.content
 
-  of mdbTable, mdFrontMatter: 
+  of mdFrontMatter: 
+    adjp "content", n.content # TODO convert to json
+
+  of mdbTable:
     raise newException(ValueError, "TODO")
 
   # --- children
@@ -640,7 +643,11 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
   #   TODO
 
   of mdFrontMatter:
-    discard
+    for l in n.content.splitLines:
+      << '%'
+      << ' '
+      << l
+      << '\n'
 
   of mdbList:
     let tag = 
@@ -1247,10 +1254,35 @@ proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode =
   else: 
     raise newException(ValueError, fmt"invalid block type '{kind}'")
 
+func frontMatterIndex(content; slice): Slice[int] = 
+  if content[slice.a + (0 ..< 3)] == "---" and content[slice.a + 3] != '-':
+    let 
+      i1 = find(content, "\n---"  , slice.a + 3) 
+      i2 = find(content, "\n\r---", slice.a + 3)
+      tail = 
+        if i1 != -1: i1
+        else:        i2
+      lenn = 
+        if i1 != -1: 4
+        else:        5
+
+    if tail != -1:
+      return 0 .. tail + lenn
+
+  0 .. -1
+
 proc parseMarkdown*(content; result: MdNode) = 
   var mask = initMaskOf content
 
-  var cursor = 0
+  let fslice = frontMatterIndex(content, indices content)
+
+  echo fslice
+
+  if 0 < len fslice:
+    mask[fslice] = true
+    result.children.add MdNode(kind: mdFrontMatter, slice: fslice, content: strip(content[fslice], chars={'-', '\n', '\r', ' '}))
+
+  var cursor = fslice.b + 1
   while cursor < content.len:
     let head = skipWhitespaces(content, cursor)
     let kind = detectBlockKind(content, head)
