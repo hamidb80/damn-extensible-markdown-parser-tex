@@ -1280,7 +1280,9 @@ proc parseMarkdown*(content; result: MdNode) =
 
   if 0 < len fslice:
     mask[fslice] = true
-    result.children.add MdNode(kind: mdFrontMatter, slice: fslice, content: strip(content[fslice], chars={'-', '\n', '\r', ' '}))
+    result.children.add MdNode(kind: mdFrontMatter, 
+                              slice: fslice, 
+                              content: strip(content[fslice], chars={'-', '\n', '\r', ' '}))
 
   var cursor = fslice.b + 1
   while cursor < content.len:
