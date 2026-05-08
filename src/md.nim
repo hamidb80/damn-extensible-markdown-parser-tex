@@ -1272,11 +1272,8 @@ func frontMatterIndex(content; slice): Slice[int] =
   0 .. -1
 
 proc parseMarkdown*(content; result: MdNode) = 
-  var mask = initMaskOf content
-
+  var mask   = initMaskOf content
   let fslice = frontMatterIndex(content, indices content)
-
-  echo fslice
 
   if 0 < len fslice:
     mask[fslice] = true
@@ -1289,7 +1286,7 @@ proc parseMarkdown*(content; result: MdNode) =
     let head = skipWhitespaces(content, cursor)
     let kind = detectBlockKind(content, head)
     let tail = afterBlock(content, head, kind)
-    if tail - head <= 0: break # maybe that's end of the document
+    if  tail - head <= 0: break # end of the document
     let b    = parseMdBlock(content, head .. tail-1, mask, kind)
     result.children.add b
     cursor = tail

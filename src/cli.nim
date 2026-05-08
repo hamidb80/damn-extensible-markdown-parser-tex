@@ -49,6 +49,7 @@ when isMainModule:
     md = attachNextCommentOfFigAsDesc md
 
     if is_pv:
+      echo fmt"+ '{persian_verb_flag}' enabled!"
       md = persianContVerbFixer md
 
     let
