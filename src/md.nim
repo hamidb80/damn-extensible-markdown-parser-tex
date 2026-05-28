@@ -554,9 +554,13 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       << '}'
  
   of mdsCode: 
+    let s = settings.langdir == mddRtl
+
+    if s: << "\\ltr{"
     << "\\texttt{"
     writeEscapedTex n.content, result
     << '}'
+    if s: << "}"
 
   of mdsMath: 
     << "\\("
