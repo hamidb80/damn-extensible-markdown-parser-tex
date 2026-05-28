@@ -734,7 +734,7 @@ func p*(str): SimplePattern =
     else:
       inc i 
 
-const listPatterns = [p"- ", p"\+ ", p"* ", p"\d+. "]
+const listPatterns = [p"- ", p"\+ ", p"* ", p"\d+. ", p"\d+) "]
 
 func matches*(ch; pt: SimplePatternToken): bool = 
   case pt.kind
@@ -1223,7 +1223,7 @@ proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode =
     for i, id in listPatterns:
       if startsWith(content, slice.a, id) != notfound:
         listId = id
-        b.numbered = i == 3
+        b.numbered = i >= 3
         break
 
     var acc: seq[Slice[int]]
@@ -1306,6 +1306,7 @@ func fixCommonPersianTypos*(s: string): string =
     ("هییت", "هیئت"),
     ("تاثیر", "تأثیر"),
     ("سوال", "سؤال"),
+    ("مؤسس", "موسس"),
     
     # arabic correctness
     ("دقیقا", "دقیقاً"),

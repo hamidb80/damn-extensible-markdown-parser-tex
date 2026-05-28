@@ -57,11 +57,13 @@ my list
 4. d d d d
 5. e e e
 6. f f
-7. g
-8. h h
-9. i i i
-10. j j
-11. k
+
+
+1) g
+2) h h
+3)  i i i
+4) j j
+5) k
 
 - $\simeq0$ no effect
 - $=1$ normal
