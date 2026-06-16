@@ -1,13 +1,46 @@
 import std/[os, strformat, strutils]
 import md
 
-const
-  pkg     = slurp("../md.nimble")
-  i       = pkg.find('"')
-  s       = pkg.find('"', i+1)
-  version = pkg[i+1 .. s-1] # -d:NimblePkgVersion how to add this?
+proc pkgVersion(nimbleContent: string): string = 
+  let 
+    i       = nimbleContent.find('"')
+    s       = nimbleContent.find('"', i+1)
+    version = nimbleContent[i+1 .. s-1] # -d:NimblePkgVersion how to add this?
+  return version
 
-  persian_verb_flag = "persian_features"
+
+
+const
+  version      = pkgVersion slurp "../md.nimble"
+  persian_flag = "persian"
+
+
+proc convertFile(ipath, opath: string, settings: MdSettings, persian: bool) =
+  echo fmt">> {ipath} -> {opath}"
+  let
+    (idir, ifile, iext) = splitFile ipath
+    (odir, ofile, oext) = splitFile opath
+    content             = readfile ipath
+
+  var 
+    titleNode = MdNode(kind: mdComment, content: fmt"generated from: {ipath}")
+    md        = MdNode(kind: mdWrap, children: @[titleNode])
+  
+  parseMarkdown(content, md)
+  md = attachNextCommentOfFigAsDesc md
+
+  if persian:
+    md = persianContVerbFixer md
+
+  let
+    result   =
+      case oext.toLowerAscii
+      of ".tex":  toTex md, settings
+      of ".json": toJson md
+      else:       quit fmt"invalid output file extension '{oext}', see help"
+
+  try:    writeFile opath, result
+  except: quit fmt"cannot write output file at '{opath}'"
 
 
 when isMainModule:
@@ -17,11 +50,24 @@ when isMainModule:
       pw    = paramStr 2
       ipath = paramStr 3
       opath = paramStr 4
-      prms  = commandLineParams()
-      is_pv = persian_verb_flag in prms[4..^1]
+      extra = commandLineParams()[4..^1]
+
+    var 
+      feat_persian = false      
+    
+
+    for flag in extra:
+      case flag
+      of persian_flag:
+        feat_persian = true
+      else:
+        quit fmt"invalid flag {flag}"
       
-      (_,_, iext) = splitFile ipath
-      (_,_, oext) = splitFile opath
+      echo fmt"++ '{flag}'"
+
+    let
+      (idir, iname, iext) = splitFile ipath
+      (odir, oname, oext) = splitFile opath
       
       pagewidth     = 
         try:    parseint pw
@@ -33,34 +79,21 @@ when isMainModule:
         of "rtl":   mddRtl
         of "nodir": mddRtl
         else      : quit fmt"invalid '{dir}' direction, see help"
+      
       settings      = MdSettings(pagewidth: pagewidth, langdir: textdirection)
-      
-      titleNode = MdNode(kind: mdComment, content: fmt"generated from: {ipath}")
 
-      content  = 
-        case iext.toLowerAscii
-        of ".md":
-          try:    readFile ipath
-          except: quit fmt"cannot read input file at '{ipath}'"
-        else:     quit fmt"invalid input file extension '{iext}', see help"
-      
-    var md = MdNode(kind: mdWrap, children: @[titleNode])
-    parseMarkdown(content, md)
-    md = attachNextCommentOfFigAsDesc md
+    if iext.toLowerAscii != ".md":
+      quit fmt"invalid input file extension '{iext}', see help"
 
-    if is_pv:
-      echo fmt"+ '{persian_verb_flag}' enabled!"
-      md = persianContVerbFixer md
-
-    let
-      result   =
-        case oext.toLowerAscii
-        of ".tex":  toTex md, settings
-        of ".json": toJson md
-        else:       quit fmt"invalid output file extension '{oext}', see help"
-
-    try:    writeFile opath, result
-    except: quit fmt"cannot write output file at '{opath}'"
+    if iname == "*":
+      echo idir
+      for ftype2, ipath2 in walkDir(idir, false, true):
+        if ftype2 == pcFile:
+          let (_, name, ext) = splitFile ipath2
+          if ext.toLowerAscii == ".md":
+            convertFile ipath2, odir / name & oext, settings, feat_persian
+    else:
+      convertFile ipath, opath, settings, feat_persian
 
   else:
     quit dedent fmt"""
@@ -70,12 +103,13 @@ when isMainModule:
       USAGE:
          app LANG_DIR PAGE_WIDTH path/to/file.md path/to/file.EXT ...FLAGS
 
+      SURPRISE:
+        you can use path/to/*.md to capture all .md files in the directory
+
       WHERE:
         LANG_DIR   `ltr` or `rtl` or `nodir`
         PAGE_WIDTH integer number. according to this parameter, the width of images are set
         EXT        `tex` or `json`
         FLAGS
-          * {persian_verb_flag}: fixes some common persian tokens e.g.
-              می کنم -> می\u200cکنم
-              ستون ها <- ستون\u200cها
+          * {persian_flag}: fixes some common persian tokens
     """
