@@ -46,6 +46,7 @@ type
     mdsBracket ## []()
     mdsEmbed ## ![]()
     mdsWikilink ## [[ ... ]]
+    mdsFootNote ## (( ... ))
     mdsComment ## // ...
     mdWikiEmbed ## like photos, PDFs, etc ![[...]]
     mdsText ## processed text
@@ -367,6 +368,7 @@ func prettyName(k: MdNodeKind): string =
   of mdsBracket: "square-bracket"
   of mdsEmbed: "inline-embed"
   of mdsWikilink: "wiki-link"
+  of mdsFootNote: "footnote"
   of mdsComment: "comment"
   of mdWikiEmbed: "wiki-embed"
   of mdsText: "text"
@@ -412,7 +414,7 @@ func toJson*(n: MdNode, result: var string) =
 
   # --- content
   case n.kind
-  of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdHLine, mdsHighlight: 
+  of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdsFootNote, mdHLine, mdsHighlight: 
     discard
 
   of mdComment:
@@ -611,6 +613,13 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       if i != 0: << ' '
       toTex sub, settings, result
     << "\\end{small}"
+
+  of mdsFootNote:
+    << "\\footnote{"
+    for i, sub in n.children:
+      if i != 0: << ' '
+      toTex sub, settings, result
+    << "}"
 
   of mdsText: 
     writeEscapedTex n.content, result
@@ -1040,6 +1049,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
         mds(@["`"], 1, mdsCode), 
         mds(@["$"], 1, mdsMath),
         mds(@["[[", "]]"], 0, mdsWikilink), 
+        mds(@["((", "))"], 0, mdsFootNote), 
       ],
 
       @[
