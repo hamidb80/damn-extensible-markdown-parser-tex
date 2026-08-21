@@ -12,6 +12,8 @@ import std/[
   nre,
 ]
 
+# import pretty
+
 # ----- Type Defs  -------------------------------
 
 type
@@ -628,9 +630,9 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << "\\clearpage"
 
   of mdsWikilink:
-    toTex MdNode(kind:    mdsItalic, 
-                children: n.children, 
-                slice:    n.slice), settings, result
+    << "\\cite{"
+    << n.content
+    << "}"
 
   of mdWikiEmbed:
     << "\\begin{figure}[H]\n"
@@ -653,7 +655,7 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << "\\end{figure}"
 
   # of mdsEmbed:
-  #   TODO
+  #   TODO 
 
   of mdFrontMatter:
     for l in n.content.splitLines:
@@ -1048,7 +1050,7 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       @[
         mds(@["`"], 1, mdsCode), 
         mds(@["$"], 1, mdsMath),
-        mds(@["[[", "]]"], 0, mdsWikilink), 
+        mds(@["[[", "]]"], 1, mdsWikilink), 
         mds(@["((", "))"], 0, mdsFootNote), 
       ],
 
@@ -1075,16 +1077,20 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
       while i < matches.len:
         var k = matches[i].span.kind
         var add = true
+        var sliceContent = ""
 
         case k
         of mdsWikilink:
           # if at(content, slice, mask, matches[i].borders[0].a-1) == '!': 
           #   k = mdWikiEmbed
-          let m = matches[i]
-          let r = m.borders[0].b+1 .. m.borders[1].a-1
-          let s = r.a + getWikiLabelSlice(content[r])
-          for c in r:
-            mask[c] = c notin s
+          let 
+            m            = matches[i]
+            contentSlice = m.borders[0].b+1 .. m.borders[1].a-1
+            labelSlice   = contentSlice.a + getWikiLabelSlice(content[contentSlice])
+          
+          sliceContent = content[contentSlice]
+          for c in contentSlice:
+            mask[c] = c notin labelSlice
 
         # TODO add embed
 
@@ -1110,7 +1116,8 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
           discard
 
         if add:
-          acc.add MdNode(kind: k, 
+          acc.add MdNode(kind: k,
+                      content: sliceContent,
                         slice: matches[i].borders[0].b+1 .. matches[i].borders[^1].a-1)
         
         inc i
