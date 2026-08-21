@@ -22,9 +22,12 @@ proc convertFile(ipath, opath: string, settings: MdSettings, persian: bool) =
     (odir, ofile, oext) = splitFile opath
     content             = readfile ipath
 
-  var 
-    titleNode = MdNode(kind: mdComment, content: fmt"generated from: {ipath}")
-    md        = MdNode(kind: mdWrap, children: @[titleNode])
+  var md = MdNode(
+      kind: mdWrap, 
+      children: @[
+        MdNode(kind: mdComment, content:  fmt"generated from: {ipath}"), 
+        MdNode(kind: mdChapter, children: parseParMdSpans(ifile)),
+      ])
   
   parseMarkdown(content, md)
   md = attachNextCommentOfFigAsDesc md

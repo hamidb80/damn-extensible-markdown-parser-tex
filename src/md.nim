@@ -23,6 +23,7 @@ type
 
     # metadata
     mdComment
+    mdChapter
     mdFrontMatter ## yaml
 
     # blocks
@@ -349,6 +350,7 @@ func prettyName(k: MdNodeKind): string =
   case k
   of mdWrap: "wrapper"
   of mdComment: "comment"
+  of mdChapter: "chapter"
   of mdFrontMatter: "front-matter"
   of mdbHeader: "header"
   of mdbPar: "paragraph"
@@ -416,7 +418,7 @@ func toJson*(n: MdNode, result: var string) =
 
   # --- content
   case n.kind
-  of mdWrap, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdsFootNote, mdHLine, mdsHighlight: 
+  of mdWrap, mdChapter, mdbPar, mdsLine, mdbQuote, mdsBoldItalic, mdsBold, mdsItalic, mdsParen, mdsBracket, mdsComment, mdsFootNote, mdHLine, mdsHighlight: 
     discard
 
   of mdComment:
@@ -504,6 +506,15 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
       << ' '
       << n.content
       << '\n'
+
+  of mdChapter:
+    << "\\chapter{"
+    for i, sub in n.children:
+      toTex sub, settings, result
+    << "}"
+    << "\n"
+    << "\\clearpage"
+    << "\n"
   
   of mdbHeader:
     let tag = 
@@ -630,8 +641,11 @@ func toTex*(n: MdNode, settings: MdSettings, result: var string) =
     << "\\clearpage"
 
   of mdsWikilink:
+    for i, sub in n.children:
+      toTex sub, settings, result
+    << " "
     << "\\cite{"
-    << n.content
+    << n.content[n.content.getWikiPathSlice]
     << "}"
 
   of mdWikiEmbed:
@@ -1194,6 +1208,11 @@ proc parseParMdSpans*(content; slice; mask): seq[MdNode] =
   markSpace root, mask, content
 
   root.children
+
+proc parseParMdSpans*(content): seq[MdNode] = 
+  var mask  = newSeqWith(content.len, false)
+  var slice = content.low .. content.high
+  parseParMdSpans(content, slice, mask)
 
 proc parseMdBlock*(content; slice; mask; kind: MdNodeKind): MdNode = 
   let contentslice = onlyContent(content, slice, kind)
